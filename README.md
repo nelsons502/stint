@@ -22,6 +22,14 @@ npm run build      # typecheck + bundle (no installer)
 npm run build:mac  # produces a .dmg
 ```
 
+## A note on `.npmrc`
+
+This project ships a `.npmrc` that sets `ignore-scripts=false`. Electron's
+`postinstall` downloads the binary, and native modules like `better-sqlite3`
+need to be rebuilt against Electron's Node ABI on install — both require
+install scripts to run. If you keep `ignore-scripts=true` globally for
+security, this project-level file overrides it just for this repo.
+
 ## License
 
 MIT
