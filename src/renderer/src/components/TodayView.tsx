@@ -45,6 +45,7 @@ export function TodayView(): React.JSX.Element {
               id={c.id}
               name={c.name}
               isActive={c.id === snap.activeContextId}
+              isRecurring={c.isRecurring}
               liveSeconds={liveSeconds(c.id, c.todaySeconds, snap, tick)}
               position={idx + 1}
               canMoveUp={idx > 0}

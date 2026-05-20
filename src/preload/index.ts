@@ -17,6 +17,9 @@ const api: StintAPI = {
     ipcRenderer.invoke(CMD.AddContext, input),
   reorderContexts: (ids) => ipcRenderer.invoke(CMD.ReorderContexts, ids),
   deleteContext: (id) => ipcRenderer.invoke(CMD.DeleteContext, id),
+  renameContext: (id, name) => ipcRenderer.invoke(CMD.RenameContext, id, name),
+  setContextRecurring: (id, recurring) =>
+    ipcRenderer.invoke(CMD.SetContextRecurring, id, recurring),
   setContextSeconds: (id, seconds) =>
     ipcRenderer.invoke(CMD.SetContextSeconds, id, seconds),
   saveAndReset: (date) => ipcRenderer.invoke(CMD.SaveAndReset, date),

@@ -147,7 +147,9 @@ app.whenReady().then(async () => {
 
   shortcuts = new ShortcutManager(timer, {
     openDropdown: () => {
-      createMainWindow()
+      // Programmatically open the tray's native NSMenu — same dropdown
+      // you'd get from clicking the menubar icon.
+      tray?.popUp()
     },
     pause: () => {
       void timer!.pause()

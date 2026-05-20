@@ -7,7 +7,9 @@ import {
   deleteNonRecurring,
   deleteContextById,
   setSortOrder,
-  renormalizeSortOrders
+  renormalizeSortOrders,
+  renameContext as repoRenameContext,
+  setContextRecurring as repoSetContextRecurring
 } from '../db/contexts'
 import { getSession, setSession, type Session } from '../db/session'
 import {
@@ -243,6 +245,30 @@ export class TimerService extends EventEmitter<TimerServiceEvents> {
       c.sortOrder = i
       return c
     })
+    this.emitSnapshot()
+  }
+
+  async renameContext(contextId: string, newName: string): Promise<void> {
+    this.assertInit()
+    const ctx = this.contexts.find((c) => c.id === contextId)
+    if (!ctx) throw new Error(`Unknown context: ${contextId}`)
+    const trimmed = newName.trim()
+    if (trimmed === '') throw new Error('Name cannot be empty')
+    await repoRenameContext(this.db, contextId, trimmed)
+    ctx.name = trimmed
+    this.emitSnapshot()
+  }
+
+  /** Flips a context between recurring (true) and ad-hoc (false). */
+  async setContextRecurring(
+    contextId: string,
+    isRecurring: boolean
+  ): Promise<void> {
+    this.assertInit()
+    const ctx = this.contexts.find((c) => c.id === contextId)
+    if (!ctx) throw new Error(`Unknown context: ${contextId}`)
+    await repoSetContextRecurring(this.db, contextId, isRecurring)
+    ctx.isRecurring = isRecurring
     this.emitSnapshot()
   }
 

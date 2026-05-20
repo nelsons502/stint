@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronUp, ChevronDown, X } from 'lucide-react'
+import { ChevronUp, ChevronDown, X, Pencil, Star, StarOff } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/ui/button'
 import { formatHMS } from '../../../shared/format'
@@ -9,6 +9,7 @@ export interface ContextRowProps {
   name: string
   liveSeconds: number
   isActive: boolean
+  isRecurring: boolean
   /** 1-based position in the displayed list (drives the ⌘⇧N hotkey hint). */
   position: number
   canMoveUp: boolean
@@ -23,6 +24,7 @@ export function ContextRow({
   name,
   liveSeconds: live,
   isActive,
+  isRecurring,
   position,
   canMoveUp,
   canMoveDown,
@@ -32,6 +34,8 @@ export function ContextRow({
 }: ContextRowProps): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
+  const [renaming, setRenaming] = useState(false)
+  const [nameValue, setNameValue] = useState('')
 
   const startEdit = (): void => {
     setEditValue(formatHMS(live))
@@ -45,6 +49,22 @@ export function ContextRow({
     await window.api.setContextSeconds(id, parsed)
   }
 
+  const startRename = (): void => {
+    setNameValue(name)
+    setRenaming(true)
+  }
+
+  const commitRename = async (): Promise<void> => {
+    const next = nameValue.trim()
+    setRenaming(false)
+    if (next === '' || next === name) return
+    await window.api.renameContext(id, next)
+  }
+
+  const toggleRecurring = async (): Promise<void> => {
+    await window.api.setContextRecurring(id, !isRecurring)
+  }
+
   return (
     <div
       className={cn(
@@ -54,22 +74,47 @@ export function ContextRow({
           : 'border-transparent hover:bg-secondary/40'
       )}
     >
-      <button
-        type="button"
-        onClick={() => void window.api.switchTo(id)}
-        className="flex flex-1 items-center gap-3 text-left"
-      >
-        <span
-          className={cn(
-            'inline-block size-2 rounded-full',
-            isActive ? 'bg-primary' : 'bg-muted-foreground/30'
+      {renaming ? (
+        <div className="flex flex-1 items-center gap-3">
+          <span
+            className={cn(
+              'inline-block size-2 rounded-full',
+              isActive ? 'bg-primary' : 'bg-muted-foreground/30'
+            )}
+          />
+          <input
+            type="text"
+            autoFocus
+            value={nameValue}
+            onChange={(e) => setNameValue(e.target.value)}
+            onBlur={() => void commitRename()}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') void commitRename()
+              if (e.key === 'Escape') setRenaming(false)
+            }}
+            className="flex-1 rounded-md border bg-background px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => void window.api.switchTo(id)}
+          onDoubleClick={startRename}
+          className="flex flex-1 items-center gap-3 text-left"
+          title="Click to switch · double-click to rename"
+        >
+          <span
+            className={cn(
+              'inline-block size-2 rounded-full',
+              isActive ? 'bg-primary' : 'bg-muted-foreground/30'
+            )}
+          />
+          <span className="text-sm font-medium">{name}</span>
+          {position <= 9 && (
+            <span className="text-xs text-muted-foreground">⌘⇧{position}</span>
           )}
-        />
-        <span className="text-sm font-medium">{name}</span>
-        {position <= 9 && (
-          <span className="text-xs text-muted-foreground">⌘⇧{position}</span>
-        )}
-      </button>
+        </button>
+      )}
 
       {editing ? (
         <input
@@ -106,6 +151,29 @@ export function ContextRow({
       ) : null}
 
       <div className="flex items-center text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Rename"
+          title="Rename"
+          onClick={startRename}
+        >
+          <Pencil />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={isRecurring ? 'Demote to ad-hoc' : 'Promote to recurring'}
+          title={
+            isRecurring
+              ? 'Recurring — click to make ad-hoc'
+              : 'Ad-hoc — click to keep across days'
+          }
+          onClick={() => void toggleRecurring()}
+          className={isRecurring ? 'text-foreground' : undefined}
+        >
+          {isRecurring ? <Star /> : <StarOff />}
+        </Button>
         <Button
           variant="ghost"
           size="icon-sm"

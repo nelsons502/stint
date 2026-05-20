@@ -108,6 +108,8 @@ export interface StintAPI {
   addContext(input: AddContextInput): Promise<void>
   reorderContexts(orderedIds: string[]): Promise<void>
   deleteContext(contextId: string): Promise<void>
+  renameContext(contextId: string, newName: string): Promise<void>
+  setContextRecurring(contextId: string, isRecurring: boolean): Promise<void>
   setContextSeconds(contextId: string, seconds: number): Promise<void>
   saveAndReset(date?: string): Promise<void>
   finalizeRecovery(choice: RecoveryChoice): Promise<void>

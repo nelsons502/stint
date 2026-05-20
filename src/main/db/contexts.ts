@@ -106,6 +106,32 @@ export async function setSortOrder(
     .execute()
 }
 
+export async function renameContext(
+  db: Kysely<DB>,
+  id: string,
+  newName: string
+): Promise<void> {
+  const trimmed = newName.trim()
+  if (trimmed === '') throw new Error('Name cannot be empty')
+  await db
+    .updateTable('contexts')
+    .set({ name: trimmed })
+    .where('id', '=', id)
+    .execute()
+}
+
+export async function setContextRecurring(
+  db: Kysely<DB>,
+  id: string,
+  isRecurring: boolean
+): Promise<void> {
+  await db
+    .updateTable('contexts')
+    .set({ is_recurring: isRecurring ? 1 : 0 })
+    .where('id', '=', id)
+    .execute()
+}
+
 /**
  * Renumbers every context's sort_order so the existing display order is
  * preserved but the values are dense (0, 1, 2, …). Called after Save &

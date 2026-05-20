@@ -87,6 +87,15 @@ export class TrayController {
     }
   }
 
+  /**
+   * Pops the tray context menu open programmatically (e.g. from the
+   * open-dropdown global hotkey). No-op if the tray isn't started.
+   */
+  popUp(): void {
+    if (!this.tray) return
+    this.tray.popUpContextMenu()
+  }
+
   private onStateChanged = (snap: TimerSnapshot): void => {
     this.currentSnapshot = snap
     this.rebuildMenu()

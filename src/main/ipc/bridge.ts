@@ -74,6 +74,16 @@ export function registerIpcBridge(
     timer.deleteContext(contextId)
   )
   ipcMain.handle(
+    CMD.RenameContext,
+    (_e, contextId: string, newName: string) =>
+      timer.renameContext(contextId, newName)
+  )
+  ipcMain.handle(
+    CMD.SetContextRecurring,
+    (_e, contextId: string, isRecurring: boolean) =>
+      timer.setContextRecurring(contextId, isRecurring)
+  )
+  ipcMain.handle(
     CMD.SetContextSeconds,
     (_e, contextId: string, seconds: number) =>
       timer.setContextSeconds(contextId, seconds)

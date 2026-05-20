@@ -8,6 +8,8 @@ export const CMD = {
   AddContext: 'stint:cmd:addContext',
   ReorderContexts: 'stint:cmd:reorderContexts',
   DeleteContext: 'stint:cmd:deleteContext',
+  RenameContext: 'stint:cmd:renameContext',
+  SetContextRecurring: 'stint:cmd:setContextRecurring',
   SetContextSeconds: 'stint:cmd:setContextSeconds',
   SaveAndReset: 'stint:cmd:saveAndReset',
   FinalizeRecovery: 'stint:cmd:finalizeRecovery',

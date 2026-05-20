@@ -257,6 +257,54 @@ describe('TimerService.reorderContexts', () => {
   })
 })
 
+describe('TimerService.renameContext', () => {
+  it('renames in memory and persists to DB', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: true })
+    await t.renameContext(a.id, 'Main Job')
+    expect(t.getSnapshot().contexts[0]!.name).toBe('Main Job')
+  })
+
+  it('trims whitespace and rejects empty names', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: true })
+    await t.renameContext(a.id, '   Trimmed   ')
+    expect(t.getSnapshot().contexts[0]!.name).toBe('Trimmed')
+    await expect(t.renameContext(a.id, '   ')).rejects.toThrow(/empty/)
+  })
+
+  it('throws for unknown ids', async () => {
+    const t = newTimer()
+    await t.init()
+    await expect(t.renameContext('nope', 'X')).rejects.toThrow(/Unknown/)
+  })
+})
+
+describe('TimerService.setContextRecurring', () => {
+  it('promotes ad-hoc to recurring (and vice versa)', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: false })
+    expect(t.getSnapshot().contexts[0]!.isRecurring).toBe(false)
+    await t.setContextRecurring(a.id, true)
+    expect(t.getSnapshot().contexts[0]!.isRecurring).toBe(true)
+    // And back the other way
+    await t.setContextRecurring(a.id, false)
+    expect(t.getSnapshot().contexts[0]!.isRecurring).toBe(false)
+  })
+
+  it('a promoted ad-hoc context survives Save & Reset', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: false })
+    await t.setContextRecurring(a.id, true)
+    await t.saveAndReset()
+    expect(t.getSnapshot().contexts.map((c) => c.name)).toEqual(['A'])
+  })
+})
+
 describe('TimerService.deleteContext', () => {
   it('removes a context that is not active', async () => {
     const t = newTimer()
