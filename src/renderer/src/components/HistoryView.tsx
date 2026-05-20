@@ -2,6 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { cn } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/ui/button'
 import { formatHMS } from '../../../shared/format'
+import { toCsv } from '../../../shared/csv'
 import type { DailyLogEntry } from '../../../shared/api'
 import { parseHMS } from './ContextRow'
 
@@ -37,6 +38,19 @@ export function HistoryView(): React.JSX.Element {
     void refreshEntries(selectedDate)
   }, [selectedDate, refreshEntries])
 
+  const importCsv = async (): Promise<void> => {
+    const result = await window.api.importCsv()
+    if (result.path === null) return // user cancelled
+    await refreshDates()
+    if (selectedDate !== null) await refreshEntries(selectedDate)
+    const msg =
+      result.errors.length === 0
+        ? `Imported ${result.imported} rows.`
+        : `Imported ${result.imported} rows; skipped ${result.errors.length} (see console).`
+    if (result.errors.length > 0) console.warn('CSV import errors:', result.errors)
+    alert(msg)
+  }
+
   if (dates === null) {
     return (
       <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
@@ -47,8 +61,11 @@ export function HistoryView(): React.JSX.Element {
 
   if (dates.length === 0) {
     return (
-      <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-        No archived days yet. Save &amp; Reset on the Today tab to create a log.
+      <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+        <p>No archived days yet. Save &amp; Reset on the Today tab to create a log.</p>
+        <Button variant="outline" size="sm" onClick={() => void importCsv()}>
+          Import CSV…
+        </Button>
       </div>
     )
   }
@@ -57,8 +74,8 @@ export function HistoryView(): React.JSX.Element {
 
   return (
     <div className="flex h-full">
-      <aside className="w-44 shrink-0 overflow-y-auto border-r">
-        <ul className="py-1">
+      <aside className="flex w-44 shrink-0 flex-col border-r">
+        <ul className="flex-1 overflow-y-auto py-1">
           {dates.map((d) => (
             <li key={d}>
               <button
@@ -76,6 +93,16 @@ export function HistoryView(): React.JSX.Element {
             </li>
           ))}
         </ul>
+        <div className="border-t p-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="w-full"
+            onClick={() => void importCsv()}
+          >
+            Import CSV…
+          </Button>
+        </div>
       </aside>
 
       <section className="flex-1 overflow-y-auto px-5 py-4">
@@ -122,6 +149,19 @@ function DayEntries({
     await onDayDeleted()
   }
 
+  const handleExportDay = async (): Promise<void> => {
+    const rows = (entries ?? []).map((e) => ({
+      date: e.date,
+      context: e.contextName,
+      durationSeconds: e.durationSeconds
+    }))
+    const csv = toCsv(rows)
+    await window.api.exportCsv({
+      suggestedFilename: `stint-${date}.csv`,
+      content: csv
+    })
+  }
+
   return (
     <div className="space-y-4">
       <header className="flex items-center justify-between">
@@ -131,9 +171,23 @@ function DayEntries({
             Total: <span className="font-mono tabular-nums">{formatHMS(total)}</span>
           </p>
         </div>
-        <Button variant="destructive" size="sm" onClick={() => void handleDeleteDay()}>
-          Delete day
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!entries || entries.length === 0}
+            onClick={() => void handleExportDay()}
+          >
+            Export CSV
+          </Button>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={() => void handleDeleteDay()}
+          >
+            Delete day
+          </Button>
+        </div>
       </header>
 
       {entries === null ? (

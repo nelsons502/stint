@@ -12,6 +12,7 @@ import {
 } from '@renderer/components/ui/tabs'
 import { TodayView } from '@renderer/components/TodayView'
 import { HistoryView } from '@renderer/components/HistoryView'
+import { ReportsView } from '@renderer/components/ReportsView'
 import { SaveAndResetDialog } from '@renderer/components/SaveAndResetDialog'
 import { RecoveryDialog } from '@renderer/components/RecoveryDialog'
 
@@ -93,12 +94,16 @@ function App(): React.JSX.Element {
         <TabsList className="mx-5 mt-3 self-start">
           <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
         </TabsList>
         <TabsContent value="today" className="flex-1 overflow-hidden">
           <TodayView />
         </TabsContent>
         <TabsContent value="history" className="flex-1 overflow-hidden">
           <HistoryView />
+        </TabsContent>
+        <TabsContent value="reports" className="flex-1 overflow-hidden">
+          <ReportsView />
         </TabsContent>
       </Tabs>
 

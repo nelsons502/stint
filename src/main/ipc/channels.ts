@@ -16,9 +16,12 @@ export const CMD = {
   SetAutoSaveConfig: 'stint:cmd:setAutoSaveConfig',
   GetLogDates: 'stint:cmd:getLogDates',
   GetLogsByDate: 'stint:cmd:getLogsByDate',
+  GetLogsByDateRange: 'stint:cmd:getLogsByDateRange',
   UpdateLogDuration: 'stint:cmd:updateLogDuration',
   DeleteLogEntry: 'stint:cmd:deleteLogEntry',
-  DeleteLogsForDate: 'stint:cmd:deleteLogsForDate'
+  DeleteLogsForDate: 'stint:cmd:deleteLogsForDate',
+  ExportCsv: 'stint:cmd:exportCsv',
+  ImportCsv: 'stint:cmd:importCsv'
 } as const
 
 export const EVT = {

@@ -10,7 +10,8 @@ export interface DailyLogEntry {
 }
 
 export interface ArchiveEntry {
-  contextId: string
+  /** FK to contexts.id; null when importing CSV with no matching context. */
+  contextId: string | null
   contextName: string
   durationSeconds: number
 }

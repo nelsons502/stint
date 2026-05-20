@@ -38,12 +38,18 @@ const api: StintAPI = {
   // History
   getLogDates: () => ipcRenderer.invoke(CMD.GetLogDates),
   getLogsByDate: (date) => ipcRenderer.invoke(CMD.GetLogsByDate, date),
+  getLogsByDateRange: (start, end) =>
+    ipcRenderer.invoke(CMD.GetLogsByDateRange, start, end),
   updateLogDuration: (date, name, seconds) =>
     ipcRenderer.invoke(CMD.UpdateLogDuration, date, name, seconds),
   deleteLogEntry: (date, name) =>
     ipcRenderer.invoke(CMD.DeleteLogEntry, date, name),
   deleteLogsForDate: (date) =>
-    ipcRenderer.invoke(CMD.DeleteLogsForDate, date)
+    ipcRenderer.invoke(CMD.DeleteLogsForDate, date),
+
+  // CSV
+  exportCsv: (args) => ipcRenderer.invoke(CMD.ExportCsv, args),
+  importCsv: () => ipcRenderer.invoke(CMD.ImportCsv)
 }
 
 if (process.contextIsolated) {

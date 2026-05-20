@@ -1,4 +1,5 @@
-import { ipcMain, BrowserWindow, webContents } from 'electron'
+import { ipcMain, BrowserWindow, dialog, webContents } from 'electron'
+import { promises as fs } from 'node:fs'
 import type { Kysely } from 'kysely'
 import type {
   TimerService,
@@ -11,12 +12,15 @@ import type { AutoSaver } from '../autosave/AutoSaver'
 import {
   getLogDates,
   getLogsByDate,
+  getLogsByDateRange,
   updateLogDuration,
   deleteLogEntry,
-  deleteLogsForDate
+  deleteLogsForDate,
+  archiveDay
 } from '../db/logs'
 import { CMD, EVT } from './channels'
 import type { AddContextInput, AutoSaveConfig } from '../../shared/api'
+import { parseCsv } from '../../shared/csv'
 
 /**
  * Wires command handlers and state broadcasts between TimerService and the
@@ -70,6 +74,10 @@ export function registerIpcBridge(
     getLogsByDate(db, date)
   )
   ipcMain.handle(
+    CMD.GetLogsByDateRange,
+    (_e, start: string, end: string) => getLogsByDateRange(db, start, end)
+  )
+  ipcMain.handle(
     CMD.UpdateLogDuration,
     (_e, date: string, contextName: string, durationSeconds: number) =>
       updateLogDuration(db, date, contextName, durationSeconds)
@@ -80,6 +88,75 @@ export function registerIpcBridge(
   ipcMain.handle(CMD.DeleteLogsForDate, async (_e, date: string) => {
     await deleteLogsForDate(db, date)
   })
+
+  // CSV
+  ipcMain.handle(
+    CMD.ExportCsv,
+    async (
+      _e,
+      args: { suggestedFilename: string; content: string }
+    ): Promise<string | null> => {
+      const focused = BrowserWindow.getFocusedWindow()
+      const result = focused
+        ? await dialog.showSaveDialog(focused, {
+            defaultPath: args.suggestedFilename,
+            filters: [{ name: 'CSV', extensions: ['csv'] }]
+          })
+        : await dialog.showSaveDialog({
+            defaultPath: args.suggestedFilename,
+            filters: [{ name: 'CSV', extensions: ['csv'] }]
+          })
+      if (result.canceled || !result.filePath) return null
+      await fs.writeFile(result.filePath, args.content, 'utf8')
+      return result.filePath
+    }
+  )
+
+  ipcMain.handle(
+    CMD.ImportCsv,
+    async (): Promise<{
+      imported: number
+      errors: { line: number; message: string }[]
+      path: string | null
+    }> => {
+      const focused = BrowserWindow.getFocusedWindow()
+      const result = focused
+        ? await dialog.showOpenDialog(focused, {
+            filters: [{ name: 'CSV', extensions: ['csv'] }],
+            properties: ['openFile']
+          })
+        : await dialog.showOpenDialog({
+            filters: [{ name: 'CSV', extensions: ['csv'] }],
+            properties: ['openFile']
+          })
+      if (result.canceled || result.filePaths.length === 0) {
+        return { imported: 0, errors: [], path: null }
+      }
+      const path = result.filePaths[0]!
+      const content = await fs.readFile(path, 'utf8')
+      const parsed = parseCsv(content)
+      // Group by date so archiveDay can upsert atomically per date.
+      const byDate = new Map<
+        string,
+        { contextId: string | null; contextName: string; durationSeconds: number }[]
+      >()
+      for (const row of parsed.rows) {
+        const list = byDate.get(row.date) ?? []
+        list.push({
+          contextId: null,
+          contextName: row.context,
+          durationSeconds: row.durationSeconds
+        })
+        byDate.set(row.date, list)
+      }
+      let imported = 0
+      for (const [date, entries] of byDate) {
+        await archiveDay(db, date, entries)
+        imported += entries.length
+      }
+      return { imported, errors: parsed.errors, path }
+    }
+  )
 
   // State broadcast
   const broadcast = (snap: TimerSnapshot): void => {

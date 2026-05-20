@@ -70,6 +70,7 @@ export interface StintAPI {
   // History / logs
   getLogDates(): Promise<string[]>
   getLogsByDate(date: string): Promise<DailyLogEntry[]>
+  getLogsByDateRange(start: string, end: string): Promise<DailyLogEntry[]>
   updateLogDuration(
     date: string,
     contextName: string,
@@ -77,6 +78,17 @@ export interface StintAPI {
   ): Promise<void>
   deleteLogEntry(date: string, contextName: string): Promise<void>
   deleteLogsForDate(date: string): Promise<void>
+
+  // CSV
+  exportCsv(args: {
+    suggestedFilename: string
+    content: string
+  }): Promise<string | null>
+  importCsv(): Promise<{
+    imported: number
+    errors: { line: number; message: string }[]
+    path: string | null
+  }>
 }
 
 declare global {
