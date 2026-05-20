@@ -4,8 +4,14 @@ import { useTick } from '@renderer/hooks/useTick'
 import { formatTitle } from '../../shared/format'
 import type { RecoveryInfo, RecoveryChoice } from '../../shared/api'
 import { Button } from '@renderer/components/ui/button'
-import { ContextRow } from '@renderer/components/ContextRow'
-import { AddContextRow } from '@renderer/components/AddContextRow'
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger
+} from '@renderer/components/ui/tabs'
+import { TodayView } from '@renderer/components/TodayView'
+import { HistoryView } from '@renderer/components/HistoryView'
 import { SaveAndResetDialog } from '@renderer/components/SaveAndResetDialog'
 import { RecoveryDialog } from '@renderer/components/RecoveryDialog'
 
@@ -17,7 +23,6 @@ function App(): React.JSX.Element {
   const [recovery, setRecovery] = useState<RecoveryInfo | null>(null)
 
   useEffect(() => {
-    // Apply dark mode based on system preference.
     const mql = window.matchMedia('(prefers-color-scheme: dark)')
     const apply = (): void => {
       document.documentElement.classList.toggle('dark', mql.matches)
@@ -78,29 +83,24 @@ function App(): React.JSX.Element {
         </div>
       </header>
 
-      <main className="flex-1 space-y-2 overflow-y-auto px-5 py-4">
-        {snap.contexts.length === 0 ? (
-          <p className="py-6 text-center text-sm text-muted-foreground">
-            No contexts yet. Add one below to start tracking.
-          </p>
-        ) : (
-          snap.contexts.map((c, idx) => (
-            <ContextRow
-              key={c.id}
-              id={c.id}
-              name={c.name}
-              isActive={c.id === snap.activeContextId}
-              liveSeconds={liveSeconds(c.id, c.todaySeconds, snap, tick)}
-              position={idx + 1}
-            />
-          ))
-        )}
-
-        <AddContextRow />
-      </main>
+      <Tabs defaultValue="today" className="flex flex-1 flex-col gap-0 overflow-hidden">
+        <TabsList className="mx-5 mt-3 self-start">
+          <TabsTrigger value="today">Today</TabsTrigger>
+          <TabsTrigger value="history">History</TabsTrigger>
+        </TabsList>
+        <TabsContent value="today" className="flex-1 overflow-hidden">
+          <TodayView />
+        </TabsContent>
+        <TabsContent value="history" className="flex-1 overflow-hidden">
+          <HistoryView />
+        </TabsContent>
+      </Tabs>
 
       <SaveAndResetDialog open={saveOpen} onOpenChange={setSaveOpen} />
-      <RecoveryDialog recovery={recovery} onResolve={(c) => void resolveRecovery(c)} />
+      <RecoveryDialog
+        recovery={recovery}
+        onResolve={(c) => void resolveRecovery(c)}
+      />
     </div>
   )
 }

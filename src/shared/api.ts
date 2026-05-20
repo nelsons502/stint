@@ -34,7 +34,22 @@ export interface AddContextInput {
   startImmediately?: boolean
 }
 
+export interface AutoSaveConfig {
+  enabled: boolean
+  /** HH:MM in 24-hour local time. */
+  time: string
+}
+
+export interface DailyLogEntry {
+  date: string
+  contextName: string
+  durationSeconds: number
+  contextId: string | null
+  createdAt: number
+}
+
 export interface StintAPI {
+  // Timer commands
   getSnapshot(): Promise<TimerSnapshot>
   switchTo(contextId: string): Promise<void>
   pause(): Promise<void>
@@ -45,6 +60,21 @@ export interface StintAPI {
   getPendingRecovery(): Promise<RecoveryInfo | null>
   /** Subscribe to state-changed events. Returns an unsubscribe function. */
   onStateChanged(handler: (snap: TimerSnapshot) => void): () => void
+
+  // Settings
+  getAutoSaveConfig(): Promise<AutoSaveConfig>
+  setAutoSaveConfig(config: AutoSaveConfig): Promise<void>
+
+  // History / logs
+  getLogDates(): Promise<string[]>
+  getLogsByDate(date: string): Promise<DailyLogEntry[]>
+  updateLogDuration(
+    date: string,
+    contextName: string,
+    durationSeconds: number
+  ): Promise<void>
+  deleteLogEntry(date: string, contextName: string): Promise<void>
+  deleteLogsForDate(date: string): Promise<void>
 }
 
 declare global {

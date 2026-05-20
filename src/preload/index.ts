@@ -4,10 +4,12 @@ import type {
   StintAPI,
   TimerSnapshot,
   AddContextInput,
-  RecoveryChoice
+  RecoveryChoice,
+  AutoSaveConfig
 } from '../shared/api'
 
 const api: StintAPI = {
+  // Timer
   getSnapshot: () => ipcRenderer.invoke(CMD.GetSnapshot),
   switchTo: (contextId) => ipcRenderer.invoke(CMD.SwitchTo, contextId),
   pause: () => ipcRenderer.invoke(CMD.Pause),
@@ -24,7 +26,22 @@ const api: StintAPI = {
       handler(snap)
     ipcRenderer.on(EVT.StateChanged, wrapped)
     return () => ipcRenderer.removeListener(EVT.StateChanged, wrapped)
-  }
+  },
+
+  // Settings
+  getAutoSaveConfig: () => ipcRenderer.invoke(CMD.GetAutoSaveConfig),
+  setAutoSaveConfig: (c: AutoSaveConfig) =>
+    ipcRenderer.invoke(CMD.SetAutoSaveConfig, c),
+
+  // History
+  getLogDates: () => ipcRenderer.invoke(CMD.GetLogDates),
+  getLogsByDate: (date) => ipcRenderer.invoke(CMD.GetLogsByDate, date),
+  updateLogDuration: (date, name, seconds) =>
+    ipcRenderer.invoke(CMD.UpdateLogDuration, date, name, seconds),
+  deleteLogEntry: (date, name) =>
+    ipcRenderer.invoke(CMD.DeleteLogEntry, date, name),
+  deleteLogsForDate: (date) =>
+    ipcRenderer.invoke(CMD.DeleteLogsForDate, date)
 }
 
 if (process.contextIsolated) {

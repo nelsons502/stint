@@ -6,11 +6,13 @@ import { TimerService, type RecoveryInfo } from './timer/TimerService'
 import { TrayController } from './tray/TrayController'
 import { ShortcutManager, DEFAULT_SHORTCUTS } from './shortcuts/ShortcutManager'
 import { registerIpcBridge, sendInitialSnapshot } from './ipc/bridge'
+import { AutoSaver } from './autosave/AutoSaver'
 
 let mainWindow: BrowserWindow | null = null
 let tray: TrayController | null = null
 let shortcuts: ShortcutManager | null = null
 let timer: TimerService | null = null
+let autoSaver: AutoSaver | null = null
 let teardownIpc: (() => void) | null = null
 const pendingRecovery: { current: RecoveryInfo | null } = { current: null }
 
@@ -79,7 +81,10 @@ app.whenReady().then(async () => {
   timer = new TimerService(db)
   pendingRecovery.current = await timer.init()
 
-  teardownIpc = registerIpcBridge(timer, pendingRecovery)
+  autoSaver = new AutoSaver(db, timer)
+  await autoSaver.start()
+
+  teardownIpc = registerIpcBridge(timer, db, autoSaver, pendingRecovery)
 
   tray = new TrayController(
     timer,
@@ -139,5 +144,6 @@ app.on('window-all-closed', () => {
 app.on('before-quit', () => {
   shortcuts?.unregisterAll()
   tray?.stop()
+  autoSaver?.stop()
   teardownIpc?.()
 })

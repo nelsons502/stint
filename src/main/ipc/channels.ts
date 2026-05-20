@@ -9,7 +9,14 @@ export const CMD = {
   SetContextSeconds: 'stint:cmd:setContextSeconds',
   SaveAndReset: 'stint:cmd:saveAndReset',
   FinalizeRecovery: 'stint:cmd:finalizeRecovery',
-  GetPendingRecovery: 'stint:cmd:getPendingRecovery'
+  GetPendingRecovery: 'stint:cmd:getPendingRecovery',
+  GetAutoSaveConfig: 'stint:cmd:getAutoSaveConfig',
+  SetAutoSaveConfig: 'stint:cmd:setAutoSaveConfig',
+  GetLogDates: 'stint:cmd:getLogDates',
+  GetLogsByDate: 'stint:cmd:getLogsByDate',
+  UpdateLogDuration: 'stint:cmd:updateLogDuration',
+  DeleteLogEntry: 'stint:cmd:deleteLogEntry',
+  DeleteLogsForDate: 'stint:cmd:deleteLogsForDate'
 } as const
 
 export const EVT = {

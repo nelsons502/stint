@@ -12,6 +12,7 @@ import { Input } from '@renderer/components/ui/input'
 import { useTimerStore, liveSeconds } from '@renderer/store/timer'
 import { useTick } from '@renderer/hooks/useTick'
 import { formatHMS } from '../../../shared/format'
+import type { AutoSaveConfig } from '../../../shared/api'
 
 export interface SaveAndResetDialogProps {
   open: boolean
@@ -26,9 +27,13 @@ export function SaveAndResetDialog({
   const tick = useTick(1000)
   const [date, setDate] = useState(snap.sessionDate)
   const [busy, setBusy] = useState(false)
+  const [autoSave, setAutoSave] = useState<AutoSaveConfig | null>(null)
 
   useEffect(() => {
-    if (open) setDate(snap.sessionDate)
+    if (open) {
+      setDate(snap.sessionDate)
+      void window.api.getAutoSaveConfig().then(setAutoSave)
+    }
   }, [open, snap.sessionDate])
 
   const entries = useMemo(
@@ -54,6 +59,11 @@ export function SaveAndResetDialog({
     } finally {
       setBusy(false)
     }
+  }
+
+  const updateAutoSave = async (next: AutoSaveConfig): Promise<void> => {
+    setAutoSave(next)
+    await window.api.setAutoSaveConfig(next)
   }
 
   return (
@@ -105,6 +115,40 @@ export function SaveAndResetDialog({
               </ul>
             )}
           </div>
+
+          {autoSave && (
+            <div className="rounded-md border border-dashed p-3 text-sm">
+              <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Auto-save
+              </p>
+              <label className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={autoSave.enabled}
+                  onChange={(e) =>
+                    void updateAutoSave({
+                      ...autoSave,
+                      enabled: e.target.checked
+                    })
+                  }
+                  className="accent-primary"
+                />
+                <span>Automatically save &amp; reset daily at</span>
+                <Input
+                  type="time"
+                  value={autoSave.time}
+                  disabled={!autoSave.enabled}
+                  onChange={(e) =>
+                    void updateAutoSave({
+                      ...autoSave,
+                      time: e.target.value
+                    })
+                  }
+                  className="w-28 font-mono"
+                />
+              </label>
+            </div>
+          )}
         </div>
 
         <DialogFooter>

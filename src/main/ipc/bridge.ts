@@ -1,12 +1,22 @@
 import { ipcMain, BrowserWindow, webContents } from 'electron'
+import type { Kysely } from 'kysely'
 import type {
   TimerService,
   TimerSnapshot,
   RecoveryInfo,
   RecoveryChoice
 } from '../timer/TimerService'
+import type { DB } from '../db/schema'
+import type { AutoSaver } from '../autosave/AutoSaver'
+import {
+  getLogDates,
+  getLogsByDate,
+  updateLogDuration,
+  deleteLogEntry,
+  deleteLogsForDate
+} from '../db/logs'
 import { CMD, EVT } from './channels'
-import type { AddContextInput } from '../../shared/api'
+import type { AddContextInput, AutoSaveConfig } from '../../shared/api'
 
 /**
  * Wires command handlers and state broadcasts between TimerService and the
@@ -15,8 +25,11 @@ import type { AddContextInput } from '../../shared/api'
  */
 export function registerIpcBridge(
   timer: TimerService,
+  db: Kysely<DB>,
+  autoSaver: AutoSaver,
   pendingRecovery: { current: RecoveryInfo | null }
 ): () => void {
+  // Timer commands
   ipcMain.handle(CMD.GetSnapshot, () => timer.getSnapshot())
   ipcMain.handle(CMD.SwitchTo, (_e, contextId: string) =>
     timer.switchTo(contextId)
@@ -39,6 +52,30 @@ export function registerIpcBridge(
     pendingRecovery.current = null
   })
 
+  // Settings
+  ipcMain.handle(CMD.GetAutoSaveConfig, () => autoSaver.getConfig())
+  ipcMain.handle(CMD.SetAutoSaveConfig, (_e, c: AutoSaveConfig) =>
+    autoSaver.updateConfig(c)
+  )
+
+  // History / logs
+  ipcMain.handle(CMD.GetLogDates, () => getLogDates(db))
+  ipcMain.handle(CMD.GetLogsByDate, (_e, date: string) =>
+    getLogsByDate(db, date)
+  )
+  ipcMain.handle(
+    CMD.UpdateLogDuration,
+    (_e, date: string, contextName: string, durationSeconds: number) =>
+      updateLogDuration(db, date, contextName, durationSeconds)
+  )
+  ipcMain.handle(CMD.DeleteLogEntry, (_e, date: string, contextName: string) =>
+    deleteLogEntry(db, date, contextName)
+  )
+  ipcMain.handle(CMD.DeleteLogsForDate, async (_e, date: string) => {
+    await deleteLogsForDate(db, date)
+  })
+
+  // State broadcast
   const broadcast = (snap: TimerSnapshot): void => {
     for (const wc of webContents.getAllWebContents()) {
       if (!wc.isDestroyed()) wc.send(EVT.StateChanged, snap)
@@ -48,14 +85,7 @@ export function registerIpcBridge(
 
   return () => {
     timer.off('state-changed', broadcast)
-    ipcMain.removeHandler(CMD.GetSnapshot)
-    ipcMain.removeHandler(CMD.SwitchTo)
-    ipcMain.removeHandler(CMD.Pause)
-    ipcMain.removeHandler(CMD.AddContext)
-    ipcMain.removeHandler(CMD.SetContextSeconds)
-    ipcMain.removeHandler(CMD.SaveAndReset)
-    ipcMain.removeHandler(CMD.GetPendingRecovery)
-    ipcMain.removeHandler(CMD.FinalizeRecovery)
+    for (const ch of Object.values(CMD)) ipcMain.removeHandler(ch)
   }
 }
 
