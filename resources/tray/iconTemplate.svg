@@ -1,0 +1,29 @@
+<!--
+  Stint tray icon: a bold capital S with a forward slash running through it,
+  in the spirit of a $ sign but with the | swapped for a /.
+
+  Designed to be rendered as a macOS template image (monochrome, with
+  setTemplateImage(true) at runtime so macOS handles light/dark inversion).
+  Authored at 32x32; rasterized to 16x16 and 32x32 (@2x) PNGs by
+  scripts/build-icons.mjs.
+-->
+<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+  <text
+    x="16"
+    y="25.5"
+    font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
+    font-size="28"
+    font-weight="900"
+    text-anchor="middle"
+    fill="#000000"
+  >S</text>
+  <line
+    x1="26"
+    y1="3"
+    x2="6"
+    y2="29"
+    stroke="#000000"
+    stroke-width="3.5"
+    stroke-linecap="round"
+  />
+</svg>
