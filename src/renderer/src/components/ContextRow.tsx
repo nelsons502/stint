@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronUp, ChevronDown, X } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
 import { Button } from '@renderer/components/ui/button'
 import { formatHMS } from '../../../shared/format'
@@ -10,6 +11,11 @@ export interface ContextRowProps {
   isActive: boolean
   /** 1-based position in the displayed list (drives the ⌘⇧N hotkey hint). */
   position: number
+  canMoveUp: boolean
+  canMoveDown: boolean
+  onMoveUp: () => void
+  onMoveDown: () => void
+  onDelete: () => void
 }
 
 export function ContextRow({
@@ -17,7 +23,12 @@ export function ContextRow({
   name,
   liveSeconds: live,
   isActive,
-  position
+  position,
+  canMoveUp,
+  canMoveDown,
+  onMoveUp,
+  onMoveDown,
+  onDelete
 }: ContextRowProps): React.JSX.Element {
   const [editing, setEditing] = useState(false)
   const [editValue, setEditValue] = useState('')
@@ -93,6 +104,36 @@ export function ContextRow({
           Pause
         </Button>
       ) : null}
+
+      <div className="flex items-center text-muted-foreground">
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Move up"
+          disabled={!canMoveUp}
+          onClick={onMoveUp}
+        >
+          <ChevronUp />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label="Move down"
+          disabled={!canMoveDown}
+          onClick={onMoveDown}
+        >
+          <ChevronDown />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          aria-label={`Delete ${name}`}
+          onClick={onDelete}
+          className="hover:text-destructive"
+        >
+          <X />
+        </Button>
+      </div>
     </div>
   )
 }

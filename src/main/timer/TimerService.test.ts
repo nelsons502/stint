@@ -236,6 +236,59 @@ describe('TimerService.setContextSeconds', () => {
   })
 })
 
+describe('TimerService.reorderContexts', () => {
+  it('reorders the in-memory list and persists sort_order', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: true })
+    const b = await t.addContext({ name: 'B', isRecurring: true })
+    const c = await t.addContext({ name: 'C', isRecurring: true })
+    await t.reorderContexts([c.id, a.id, b.id])
+    const snap = t.getSnapshot()
+    expect(snap.contexts.map((x) => x.name)).toEqual(['C', 'A', 'B'])
+    expect(snap.contexts.map((x) => x.sortOrder)).toEqual([0, 1, 2])
+  })
+
+  it('rejects an id set that doesn’t match the current contexts', async () => {
+    const t = newTimer()
+    await t.init()
+    await t.addContext({ name: 'A', isRecurring: true })
+    await expect(t.reorderContexts(['bogus'])).rejects.toThrow()
+  })
+})
+
+describe('TimerService.deleteContext', () => {
+  it('removes a context that is not active', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: true })
+    const b = await t.addContext({ name: 'B', isRecurring: true })
+    await t.deleteContext(a.id)
+    expect(t.getSnapshot().contexts.map((c) => c.name)).toEqual(['B'])
+    expect(t.getSnapshot().activeContextId).toBeNull()
+    void b
+  })
+
+  it('commits the in-progress run and pauses before deleting the active context', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'A', isRecurring: true })
+    await t.switchTo(a.id)
+    nowMs += 120 * 1000
+    // Snapshot the time we want credited before delete.
+    await t.deleteContext(a.id)
+    const snap = t.getSnapshot()
+    expect(snap.activeContextId).toBeNull()
+    expect(snap.contexts).toEqual([])
+  })
+
+  it('throws for unknown ids', async () => {
+    const t = newTimer()
+    await t.init()
+    await expect(t.deleteContext('nope')).rejects.toThrow(/Unknown context/)
+  })
+})
+
 describe('TimerService.saveAndReset', () => {
   it('archives entries, clears today, removes ad-hoc, advances session date', async () => {
     const t = newTimer()
@@ -300,6 +353,31 @@ describe('TimerService.saveAndReset', () => {
     // B still exists in the contexts table (recurring contexts persist).
     const allContexts = await listContexts(db)
     expect(allContexts.map((c) => c.name).sort()).toEqual(['A', 'B'])
+  })
+
+  it('renormalizes sort_orders so recurring contexts are dense at the top', async () => {
+    const t = newTimer()
+    await t.init()
+    const a = await t.addContext({ name: 'Recur-A', isRecurring: true })
+    await t.addContext({ name: 'AdHoc-1', isRecurring: false })
+    const b = await t.addContext({ name: 'Recur-B', isRecurring: true })
+    await t.addContext({ name: 'AdHoc-2', isRecurring: false })
+
+    // Before save: 4 contexts in order, sort_orders 0..3
+    expect(t.getSnapshot().contexts.map((c) => c.sortOrder)).toEqual([
+      0, 1, 2, 3
+    ])
+
+    await t.switchTo(a.id)
+    nowMs += 60 * 1000
+    await t.pause()
+    await t.saveAndReset()
+
+    // After save: only recurring remain, sort_orders 0..1
+    const snap = t.getSnapshot()
+    expect(snap.contexts.map((c) => c.name)).toEqual(['Recur-A', 'Recur-B'])
+    expect(snap.contexts.map((c) => c.sortOrder)).toEqual([0, 1])
+    void b
   })
 
   it('asserts init() was called first', async () => {

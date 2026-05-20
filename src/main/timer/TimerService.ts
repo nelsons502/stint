@@ -4,7 +4,10 @@ import type { DB } from '../db/schema'
 import {
   listContexts,
   createContext,
-  deleteNonRecurring
+  deleteNonRecurring,
+  deleteContextById,
+  setSortOrder,
+  renormalizeSortOrders
 } from '../db/contexts'
 import { getSession, setSession, type Session } from '../db/session'
 import {
@@ -217,6 +220,52 @@ export class TimerService extends EventEmitter<TimerServiceEvents> {
     return withSeconds
   }
 
+  /**
+   * Reorders the context list. `orderedIds` must contain exactly the
+   * current set of context ids, in the new display order. Throws if the
+   * ids don't match the current set.
+   */
+  async reorderContexts(orderedIds: string[]): Promise<void> {
+    this.assertInit()
+    if (orderedIds.length !== this.contexts.length) {
+      throw new Error('reorderContexts requires the full id set')
+    }
+    const known = new Set(this.contexts.map((c) => c.id))
+    for (const id of orderedIds) {
+      if (!known.has(id)) throw new Error(`Unknown context: ${id}`)
+    }
+    for (let i = 0; i < orderedIds.length; i++) {
+      await setSortOrder(this.db, orderedIds[i]!, i)
+    }
+    const byId = new Map(this.contexts.map((c) => [c.id, c]))
+    this.contexts = orderedIds.map((id, i) => {
+      const c = byId.get(id)!
+      c.sortOrder = i
+      return c
+    })
+    this.emitSnapshot()
+  }
+
+  /**
+   * Deletes a context. If it's the active context, the in-progress run is
+   * committed first, then the timer is paused before the row is removed.
+   */
+  async deleteContext(contextId: string): Promise<void> {
+    this.assertInit()
+    const ctx = this.contexts.find((c) => c.id === contextId)
+    if (!ctx) throw new Error(`Unknown context: ${contextId}`)
+    if (this.activeContextId === contextId) {
+      const now = this.clock()
+      await this.commitActiveRun(now)
+      this.activeContextId = null
+      this.activeStartedAtMs = null
+      await setSession(this.db, this.toSessionRow())
+    }
+    await deleteContextById(this.db, contextId)
+    this.contexts = this.contexts.filter((c) => c.id !== contextId)
+    this.emitSnapshot()
+  }
+
   /** Manually edits a context's today seconds (Today tab inline edit). */
   async setContextSeconds(
     contextId: string,
@@ -266,6 +315,9 @@ export class TimerService extends EventEmitter<TimerServiceEvents> {
       await archiveDay(trx, archiveDate, entries)
       await resetAllTodaySeconds(trx)
       await deleteNonRecurring(trx)
+      // After ad-hoc removal, recurring contexts may have gaps in their
+      // sort_order. Dense them so they line up at the top of the list.
+      await renormalizeSortOrders(trx)
       this.sessionDate = localDateString(new Date(now))
       await setSession(trx, this.toSessionRow())
     })

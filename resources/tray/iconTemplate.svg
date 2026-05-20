@@ -27,13 +27,14 @@
     stroke-width="3.5"
     stroke-linecap="round"
   />
-  <!-- Crossbar: perpendicular to the stem, centered at the point where
-       the stem exits the top of the S (~22, 7). Length 7. -->
+  <!-- Crossbar: perpendicular to the stem, centered at (22, 7) where the
+       stem exits the top of the S. Length 13, sticks out past the stem on
+       both sides like the crossbar of a lowercase t. -->
   <line
-    x1="19.2"
-    y1="4.9"
-    x2="24.8"
-    y2="9.1"
+    x1="16.9"
+    y1="3.0"
+    x2="27.1"
+    y2="11.0"
     stroke="#000000"
     stroke-width="3.0"
     stroke-linecap="round"

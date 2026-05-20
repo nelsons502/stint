@@ -6,7 +6,10 @@ import { openAndMigrate } from './open'
 import {
   listContexts,
   createContext,
-  deleteNonRecurring
+  deleteNonRecurring,
+  deleteContextById,
+  setSortOrder,
+  renormalizeSortOrders
 } from './contexts'
 
 let db: Kysely<DB>
@@ -71,5 +74,34 @@ describe('contexts repo', () => {
     expect(deleted).toBe(2)
     const list = await listContexts(db)
     expect(list.map((c) => c.name)).toEqual(['R1'])
+  })
+
+  it('deleteContextById removes one row', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    await createContext(db, { name: 'B', isRecurring: true })
+    await deleteContextById(db, a.id)
+    expect((await listContexts(db)).map((c) => c.name)).toEqual(['B'])
+  })
+
+  it('setSortOrder updates only the targeted row', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    const b = await createContext(db, { name: 'B', isRecurring: true })
+    await setSortOrder(db, a.id, 5)
+    await setSortOrder(db, b.id, 2)
+    // listContexts orders by sort_order ascending
+    expect((await listContexts(db)).map((c) => c.name)).toEqual(['B', 'A'])
+  })
+
+  it('renormalizeSortOrders compacts the order densely starting at 0', async () => {
+    await createContext(db, { name: 'A', isRecurring: true, sortOrder: 0 })
+    await createContext(db, { name: 'B', isRecurring: true, sortOrder: 5 })
+    await createContext(db, { name: 'C', isRecurring: true, sortOrder: 9 })
+    await renormalizeSortOrders(db)
+    const list = await listContexts(db)
+    expect(list.map((c) => [c.name, c.sortOrder])).toEqual([
+      ['A', 0],
+      ['B', 1],
+      ['C', 2]
+    ])
   })
 })

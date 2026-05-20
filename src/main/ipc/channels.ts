@@ -6,6 +6,8 @@ export const CMD = {
   SwitchTo: 'stint:cmd:switchTo',
   Pause: 'stint:cmd:pause',
   AddContext: 'stint:cmd:addContext',
+  ReorderContexts: 'stint:cmd:reorderContexts',
+  DeleteContext: 'stint:cmd:deleteContext',
   SetContextSeconds: 'stint:cmd:setContextSeconds',
   SaveAndReset: 'stint:cmd:saveAndReset',
   FinalizeRecovery: 'stint:cmd:finalizeRecovery',

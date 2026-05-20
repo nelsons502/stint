@@ -55,7 +55,10 @@ function App(): React.JSX.Element {
 
   return (
     <div className="flex h-full flex-col">
-      <header className="flex items-center justify-between border-b px-5 py-3">
+      <header
+        className="flex items-center justify-between border-b py-3 pl-24 pr-5"
+        style={{ WebkitAppRegion: 'drag' } as React.CSSProperties}
+      >
         <div>
           <h1 className="text-base font-semibold tracking-tight">Stint</h1>
           <p className="font-mono text-xs text-muted-foreground tabular-nums">
@@ -64,7 +67,10 @@ function App(): React.JSX.Element {
             {snap.sessionDate || '—'}
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div
+          className="flex items-center gap-2"
+          style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+        >
           <Button
             variant="ghost"
             size="sm"

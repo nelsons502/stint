@@ -86,3 +86,36 @@ export async function deleteNonRecurring(db: Kysely<DB>): Promise<number> {
     .executeTakeFirst()
   return Number(result.numDeletedRows ?? 0)
 }
+
+export async function deleteContextById(
+  db: Kysely<DB>,
+  id: string
+): Promise<void> {
+  await db.deleteFrom('contexts').where('id', '=', id).execute()
+}
+
+export async function setSortOrder(
+  db: Kysely<DB>,
+  id: string,
+  sortOrder: number
+): Promise<void> {
+  await db
+    .updateTable('contexts')
+    .set({ sort_order: sortOrder })
+    .where('id', '=', id)
+    .execute()
+}
+
+/**
+ * Renumbers every context's sort_order so the existing display order is
+ * preserved but the values are dense (0, 1, 2, …). Called after Save &
+ * Reset so gaps left by removed ad-hoc contexts don't accumulate.
+ */
+export async function renormalizeSortOrders(db: Kysely<DB>): Promise<void> {
+  const contexts = await listContexts(db)
+  for (let i = 0; i < contexts.length; i++) {
+    if (contexts[i]!.sortOrder !== i) {
+      await setSortOrder(db, contexts[i]!.id, i)
+    }
+  }
+}

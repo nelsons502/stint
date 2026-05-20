@@ -38,6 +38,12 @@ export function registerIpcBridge(
   ipcMain.handle(CMD.AddContext, (_e, input: AddContextInput) =>
     timer.addContext(input).then(() => undefined)
   )
+  ipcMain.handle(CMD.ReorderContexts, (_e, orderedIds: string[]) =>
+    timer.reorderContexts(orderedIds)
+  )
+  ipcMain.handle(CMD.DeleteContext, (_e, contextId: string) =>
+    timer.deleteContext(contextId)
+  )
   ipcMain.handle(
     CMD.SetContextSeconds,
     (_e, contextId: string, seconds: number) =>

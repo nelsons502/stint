@@ -54,6 +54,8 @@ export interface StintAPI {
   switchTo(contextId: string): Promise<void>
   pause(): Promise<void>
   addContext(input: AddContextInput): Promise<void>
+  reorderContexts(orderedIds: string[]): Promise<void>
+  deleteContext(contextId: string): Promise<void>
   setContextSeconds(contextId: string, seconds: number): Promise<void>
   saveAndReset(date?: string): Promise<void>
   finalizeRecovery(choice: RecoveryChoice): Promise<void>

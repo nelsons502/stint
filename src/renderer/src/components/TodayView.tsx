@@ -3,9 +3,33 @@ import { useTick } from '@renderer/hooks/useTick'
 import { ContextRow } from '@renderer/components/ContextRow'
 import { AddContextRow } from '@renderer/components/AddContextRow'
 
+function swap<T>(arr: T[], i: number, j: number): T[] {
+  const next = arr.slice()
+  ;[next[i], next[j]] = [next[j]!, next[i]!]
+  return next
+}
+
 export function TodayView(): React.JSX.Element {
   const snap = useTimerStore()
   const tick = useTick(1000)
+
+  const move = (i: number, dir: -1 | 1): void => {
+    const j = i + dir
+    if (j < 0 || j >= snap.contexts.length) return
+    const ids = swap(
+      snap.contexts.map((c) => c.id),
+      i,
+      j
+    )
+    void window.api.reorderContexts(ids)
+  }
+
+  const remove = (id: string, name: string): void => {
+    if (!confirm(`Delete "${name}"? Today's accumulated time for it is lost.`)) {
+      return
+    }
+    void window.api.deleteContext(id)
+  }
 
   return (
     <div className="flex h-full flex-col">
@@ -23,6 +47,11 @@ export function TodayView(): React.JSX.Element {
               isActive={c.id === snap.activeContextId}
               liveSeconds={liveSeconds(c.id, c.todaySeconds, snap, tick)}
               position={idx + 1}
+              canMoveUp={idx > 0}
+              canMoveDown={idx < snap.contexts.length - 1}
+              onMoveUp={() => move(idx, -1)}
+              onMoveDown={() => move(idx, 1)}
+              onDelete={() => remove(c.id, c.name)}
             />
           ))
         )}
