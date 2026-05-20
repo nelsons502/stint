@@ -4,7 +4,10 @@ import { Input } from '@renderer/components/ui/input'
 
 export function AddContextRow(): React.JSX.Element {
   const [name, setName] = useState('')
-  const [isRecurring, setIsRecurring] = useState(true)
+  // Inline-add defaults to ad-hoc: this is the on-the-fly path per the spec
+  // ("Ad-hoc contexts — added on the fly"). Recurring contexts are managed
+  // in Settings. Users can still tick the checkbox to make this one stick.
+  const [isRecurring, setIsRecurring] = useState(false)
   const [busy, setBusy] = useState(false)
 
   const submit = async (
@@ -39,14 +42,17 @@ export function AddContextRow(): React.JSX.Element {
         disabled={busy}
         className="flex-1"
       />
-      <label className="flex items-center gap-1.5 text-sm text-muted-foreground">
+      <label
+        className="flex items-center gap-1.5 text-sm text-muted-foreground"
+        title="Recurring contexts reload empty on each new day; ad-hoc contexts are removed when you Save & Reset."
+      >
         <input
           type="checkbox"
           checked={isRecurring}
           onChange={(e) => setIsRecurring(e.target.checked)}
           className="accent-primary"
         />
-        recurring
+        keep across days
       </label>
       <Button
         type="submit"

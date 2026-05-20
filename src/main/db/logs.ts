@@ -21,8 +21,11 @@ export interface ArchiveEntry {
  * transaction. Entries with durationSeconds <= 0 are skipped (the spec says
  * contexts with no tracked time should be omitted from the day's log).
  *
- * If a log row for (date, contextName) already exists, the new value
- * replaces it.
+ * If a log row for (date, contextName) already exists, the new duration is
+ * ADDED to the existing one. This makes Save & Reset additive across
+ * multiple runs in the same day, and means CSV import merges with existing
+ * data rather than overwriting it. Manual edits in the History tab go
+ * through `updateLogDuration` (set-to-value) and are unaffected.
  */
 export async function archiveDay(
   db: Kysely<DB>,
@@ -45,8 +48,16 @@ export async function archiveDay(
     )
     .onConflict((oc) =>
       oc.columns(['date', 'context_name']).doUpdateSet((eb) => ({
-        duration_seconds: eb.ref('excluded.duration_seconds'),
-        context_id: eb.ref('excluded.context_id'),
+        duration_seconds: eb(
+          'daily_logs.duration_seconds',
+          '+',
+          eb.ref('excluded.duration_seconds')
+        ),
+        // Don't clobber an existing context_id with null from an import.
+        context_id: eb.fn.coalesce(
+          eb.ref('daily_logs.context_id'),
+          eb.ref('excluded.context_id')
+        ),
         created_at: eb.ref('excluded.created_at')
       }))
     )

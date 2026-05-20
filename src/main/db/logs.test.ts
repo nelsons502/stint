@@ -32,7 +32,7 @@ describe('logs repo', () => {
     expect(logs.map((l) => l.contextName)).toEqual(['A'])
   })
 
-  it('upserts on (date, context_name) — a re-archive replaces the row', async () => {
+  it('sums on (date, context_name) — a re-archive adds to the existing duration', async () => {
     const a = await createContext(db, { name: 'A', isRecurring: true })
     await archiveDay(db, '2026-05-19', [
       { contextId: a.id, contextName: 'A', durationSeconds: 300 }
@@ -42,7 +42,21 @@ describe('logs repo', () => {
     ])
     const logs = await getLogsByDate(db, '2026-05-19')
     expect(logs).toHaveLength(1)
-    expect(logs[0]!.durationSeconds).toBe(450)
+    expect(logs[0]!.durationSeconds).toBe(750)
+  })
+
+  it('preserves an existing context_id when a later archive supplies null', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    await archiveDay(db, '2026-05-19', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 100 }
+    ])
+    // Subsequent archive (e.g., from CSV import) has no contextId.
+    await archiveDay(db, '2026-05-19', [
+      { contextId: null, contextName: 'A', durationSeconds: 50 }
+    ])
+    const logs = await getLogsByDate(db, '2026-05-19')
+    expect(logs[0]!.contextId).toBe(a.id)
+    expect(logs[0]!.durationSeconds).toBe(150)
   })
 
   it('preserves context_name after the context is later deleted', async () => {
