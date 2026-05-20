@@ -60,6 +60,16 @@ const migrations: Migration[] = [
         .column('date')
         .execute()
     }
+  },
+  {
+    name: '0002_app_settings',
+    up: async (db) => {
+      await db.schema
+        .createTable('app_settings')
+        .addColumn('key', 'text', (col) => col.primaryKey())
+        .addColumn('value', 'text', (col) => col.notNull())
+        .execute()
+    }
   }
 ]
 

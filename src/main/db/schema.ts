@@ -46,10 +46,16 @@ export interface MigrationsAppliedTable {
   applied_at: number
 }
 
+export interface AppSettingsTable {
+  key: string
+  value: string
+}
+
 export interface DB {
   contexts: ContextsTable
   session: SessionTable
   today_seconds: TodaySecondsTable
   daily_logs: DailyLogsTable
+  app_settings: AppSettingsTable
   migrations_applied: MigrationsAppliedTable
 }

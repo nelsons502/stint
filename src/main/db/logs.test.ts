@@ -4,7 +4,15 @@ import type { Kysely } from 'kysely'
 import type { DB } from './schema'
 import { openAndMigrate } from './open'
 import { createContext } from './contexts'
-import { archiveDay, getLogsByDate, getLogsByDateRange } from './logs'
+import {
+  archiveDay,
+  getLogsByDate,
+  getLogsByDateRange,
+  getLogDates,
+  updateLogDuration,
+  deleteLogsForDate,
+  deleteLogEntry
+} from './logs'
 
 let db: Kysely<DB>
 
@@ -68,5 +76,64 @@ describe('logs repo', () => {
   it('handles an empty entries array without erroring', async () => {
     await archiveDay(db, '2026-05-19', [])
     expect(await getLogsByDate(db, '2026-05-19')).toEqual([])
+  })
+
+  it('getLogDates returns distinct dates, newest first', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    await archiveDay(db, '2026-05-17', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 60 }
+    ])
+    await archiveDay(db, '2026-05-19', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 60 }
+    ])
+    await archiveDay(db, '2026-05-18', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 60 }
+    ])
+    expect(await getLogDates(db)).toEqual([
+      '2026-05-19',
+      '2026-05-18',
+      '2026-05-17'
+    ])
+  })
+
+  it('updateLogDuration edits a single (date, contextName) row and clamps negatives', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    await archiveDay(db, '2026-05-19', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 300 }
+    ])
+    await updateLogDuration(db, '2026-05-19', 'A', 450)
+    expect((await getLogsByDate(db, '2026-05-19'))[0]!.durationSeconds).toBe(
+      450
+    )
+    await updateLogDuration(db, '2026-05-19', 'A', -10)
+    expect((await getLogsByDate(db, '2026-05-19'))[0]!.durationSeconds).toBe(0)
+  })
+
+  it('deleteLogsForDate removes every row for that date', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    const b = await createContext(db, { name: 'B', isRecurring: true })
+    await archiveDay(db, '2026-05-19', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 60 },
+      { contextId: b.id, contextName: 'B', durationSeconds: 90 }
+    ])
+    await archiveDay(db, '2026-05-18', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 30 }
+    ])
+    const n = await deleteLogsForDate(db, '2026-05-19')
+    expect(n).toBe(2)
+    expect(await getLogsByDate(db, '2026-05-19')).toEqual([])
+    expect(await getLogsByDate(db, '2026-05-18')).toHaveLength(1)
+  })
+
+  it('deleteLogEntry removes a single row', async () => {
+    const a = await createContext(db, { name: 'A', isRecurring: true })
+    const b = await createContext(db, { name: 'B', isRecurring: true })
+    await archiveDay(db, '2026-05-19', [
+      { contextId: a.id, contextName: 'A', durationSeconds: 60 },
+      { contextId: b.id, contextName: 'B', durationSeconds: 90 }
+    ])
+    await deleteLogEntry(db, '2026-05-19', 'A')
+    const logs = await getLogsByDate(db, '2026-05-19')
+    expect(logs.map((l) => l.contextName)).toEqual(['B'])
   })
 })

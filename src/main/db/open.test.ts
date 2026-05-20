@@ -9,6 +9,7 @@ describe('createDb + runMigrations', () => {
     const tables = await db.introspection.getTables()
     const names = tables.map((t) => t.name).sort()
     expect(names).toEqual([
+      'app_settings',
       'contexts',
       'daily_logs',
       'migrations_applied',
@@ -26,7 +27,10 @@ describe('createDb + runMigrations', () => {
       .selectFrom('migrations_applied')
       .select('name')
       .execute()
-    expect(applied.map((r) => r.name)).toEqual(['0001_initial'])
+    expect(applied.map((r) => r.name)).toEqual([
+      '0001_initial',
+      '0002_app_settings'
+    ])
     await db.destroy()
   })
 

@@ -92,3 +92,55 @@ export async function getLogsByDateRange(
     createdAt: r.created_at
   }))
 }
+
+/** Returns distinct log dates, newest first. */
+export async function getLogDates(db: Kysely<DB>): Promise<string[]> {
+  const rows = await db
+    .selectFrom('daily_logs')
+    .select('date')
+    .distinct()
+    .orderBy('date', 'desc')
+    .execute()
+  return rows.map((r) => r.date)
+}
+
+/** Edits a single log row's duration. Negative values clamp to 0. */
+export async function updateLogDuration(
+  db: Kysely<DB>,
+  date: string,
+  contextName: string,
+  durationSeconds: number
+): Promise<void> {
+  const clamped = Math.max(0, Math.round(durationSeconds))
+  await db
+    .updateTable('daily_logs')
+    .set({ duration_seconds: clamped })
+    .where('date', '=', date)
+    .where('context_name', '=', contextName)
+    .execute()
+}
+
+/** Deletes every log row for the given date. */
+export async function deleteLogsForDate(
+  db: Kysely<DB>,
+  date: string
+): Promise<number> {
+  const result = await db
+    .deleteFrom('daily_logs')
+    .where('date', '=', date)
+    .executeTakeFirst()
+  return Number(result.numDeletedRows ?? 0)
+}
+
+/** Deletes a single (date, context_name) row. */
+export async function deleteLogEntry(
+  db: Kysely<DB>,
+  date: string,
+  contextName: string
+): Promise<void> {
+  await db
+    .deleteFrom('daily_logs')
+    .where('date', '=', date)
+    .where('context_name', '=', contextName)
+    .execute()
+}
