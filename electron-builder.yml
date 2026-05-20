@@ -11,6 +11,11 @@ files:
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
 asarUnpack:
   - resources/**
+# Mirror resources/ under <app>/Contents/Resources/resources so the runtime
+# can resolve them at process.resourcesPath + '/resources' in production.
+extraResources:
+  - from: resources
+    to: resources
 win:
   executableName: stint-app
 nsis:

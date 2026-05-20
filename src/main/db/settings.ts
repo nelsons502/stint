@@ -5,7 +5,13 @@ import type { DB } from './schema'
 export const SettingsKeys = {
   AutoSaveEnabled: 'autoSaveEnabled',
   /** HH:MM in 24-hour local time, e.g., "03:00". */
-  AutoSaveTime: 'autoSaveTime'
+  AutoSaveTime: 'autoSaveTime',
+  /**
+   * Honor-system paywall for weekly goals. 'true' = paid (or simulated paid),
+   * anything else = locked. The architecture is designed so this gate can be
+   * swapped for a server-side check later without touching the UI.
+   */
+  GoalsUnlocked: 'goalsUnlocked'
 } as const
 
 export type SettingsKey = (typeof SettingsKeys)[keyof typeof SettingsKeys]
@@ -75,4 +81,15 @@ export async function setAutoSaveConfig(
   }
   await setSetting(db, SettingsKeys.AutoSaveEnabled, String(config.enabled))
   await setSetting(db, SettingsKeys.AutoSaveTime, config.time)
+}
+
+export async function getGoalsUnlocked(db: Kysely<DB>): Promise<boolean> {
+  return (await getSetting(db, SettingsKeys.GoalsUnlocked)) === 'true'
+}
+
+export async function setGoalsUnlocked(
+  db: Kysely<DB>,
+  unlocked: boolean
+): Promise<void> {
+  await setSetting(db, SettingsKeys.GoalsUnlocked, String(unlocked))
 }

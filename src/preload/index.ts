@@ -47,6 +47,13 @@ const api: StintAPI = {
   deleteLogsForDate: (date) =>
     ipcRenderer.invoke(CMD.DeleteLogsForDate, date),
 
+  // Goals + paywall
+  listGoalProgress: () => ipcRenderer.invoke(CMD.ListGoalProgress),
+  setGoal: (id, target) => ipcRenderer.invoke(CMD.SetGoal, id, target),
+  deleteGoal: (id) => ipcRenderer.invoke(CMD.DeleteGoal, id),
+  getGoalsUnlocked: () => ipcRenderer.invoke(CMD.GetGoalsUnlocked),
+  setGoalsUnlocked: (u) => ipcRenderer.invoke(CMD.SetGoalsUnlocked, u),
+
   // CSV
   exportCsv: (args) => ipcRenderer.invoke(CMD.ExportCsv, args),
   importCsv: () => ipcRenderer.invoke(CMD.ImportCsv)

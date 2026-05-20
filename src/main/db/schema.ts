@@ -51,11 +51,21 @@ export interface AppSettingsTable {
   value: string
 }
 
+export interface GoalsTable {
+  /** FK to contexts.id; one goal per context. */
+  context_id: string
+  target_seconds_per_week: number
+  /** YYYY-MM-DD of the week-start when this goal was last marked hit; null if never hit. */
+  last_hit_week: string | null
+  created_at: number
+}
+
 export interface DB {
   contexts: ContextsTable
   session: SessionTable
   today_seconds: TodaySecondsTable
   daily_logs: DailyLogsTable
   app_settings: AppSettingsTable
+  goals: GoalsTable
   migrations_applied: MigrationsAppliedTable
 }

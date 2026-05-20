@@ -40,6 +40,16 @@ export interface AutoSaveConfig {
   time: string
 }
 
+export interface GoalProgress {
+  contextId: string
+  contextName: string
+  targetSecondsPerWeek: number
+  currentSeconds: number
+  weekStart: string
+  weekEnd: string
+  hit: boolean
+}
+
 export interface DailyLogEntry {
   date: string
   contextName: string
@@ -78,6 +88,13 @@ export interface StintAPI {
   ): Promise<void>
   deleteLogEntry(date: string, contextName: string): Promise<void>
   deleteLogsForDate(date: string): Promise<void>
+
+  // Goals + paywall
+  listGoalProgress(): Promise<GoalProgress[]>
+  setGoal(contextId: string, targetSecondsPerWeek: number): Promise<void>
+  deleteGoal(contextId: string): Promise<void>
+  getGoalsUnlocked(): Promise<boolean>
+  setGoalsUnlocked(unlocked: boolean): Promise<void>
 
   // CSV
   exportCsv(args: {

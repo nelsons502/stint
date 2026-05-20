@@ -70,6 +70,22 @@ const migrations: Migration[] = [
         .addColumn('value', 'text', (col) => col.notNull())
         .execute()
     }
+  },
+  {
+    name: '0003_goals',
+    up: async (db) => {
+      await db.schema
+        .createTable('goals')
+        .addColumn('context_id', 'text', (col) =>
+          col.primaryKey().references('contexts.id').onDelete('cascade')
+        )
+        .addColumn('target_seconds_per_week', 'integer', (col) =>
+          col.notNull()
+        )
+        .addColumn('last_hit_week', 'text')
+        .addColumn('created_at', 'integer', (col) => col.notNull())
+        .execute()
+    }
   }
 ]
 

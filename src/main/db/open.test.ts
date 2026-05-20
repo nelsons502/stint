@@ -12,6 +12,7 @@ describe('createDb + runMigrations', () => {
       'app_settings',
       'contexts',
       'daily_logs',
+      'goals',
       'migrations_applied',
       'session',
       'today_seconds'
@@ -29,7 +30,8 @@ describe('createDb + runMigrations', () => {
       .execute()
     expect(applied.map((r) => r.name)).toEqual([
       '0001_initial',
-      '0002_app_settings'
+      '0002_app_settings',
+      '0003_goals'
     ])
     await db.destroy()
   })

@@ -1,4 +1,4 @@
-import { app, BrowserWindow, shell } from 'electron'
+import { app, BrowserWindow, Notification, shell } from 'electron'
 import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { openAndMigrate } from './db/open'
@@ -7,19 +7,25 @@ import { TrayController } from './tray/TrayController'
 import { ShortcutManager, DEFAULT_SHORTCUTS } from './shortcuts/ShortcutManager'
 import { registerIpcBridge, sendInitialSnapshot } from './ipc/bridge'
 import { AutoSaver } from './autosave/AutoSaver'
+import { GoalsService } from './goals/GoalsService'
+import { formatHMS } from '../shared/format'
 
 let mainWindow: BrowserWindow | null = null
 let tray: TrayController | null = null
 let shortcuts: ShortcutManager | null = null
 let timer: TimerService | null = null
 let autoSaver: AutoSaver | null = null
+let goalsService: GoalsService | null = null
 let teardownIpc: (() => void) | null = null
 const pendingRecovery: { current: RecoveryInfo | null } = { current: null }
 
 function getResourcesPath(): string {
-  // In dev, resources/ sits at the project root. In production, it's
-  // bundled next to the app under process.resourcesPath.
-  return is.dev ? join(app.getAppPath(), 'resources') : process.resourcesPath
+  // In dev, resources/ sits at the project root. In production,
+  // electron-builder.yml's extraResources copies the directory under
+  // process.resourcesPath/resources.
+  return is.dev
+    ? join(app.getAppPath(), 'resources')
+    : join(process.resourcesPath, 'resources')
 }
 
 function createMainWindow(): BrowserWindow {
@@ -84,7 +90,22 @@ app.whenReady().then(async () => {
   autoSaver = new AutoSaver(db, timer)
   await autoSaver.start()
 
-  teardownIpc = registerIpcBridge(timer, db, autoSaver, pendingRecovery)
+  goalsService = new GoalsService(db, timer, (event) => {
+    new Notification({
+      title: 'Goal hit!',
+      body: `${event.contextName} — ${formatHMS(event.targetSecondsPerWeek)} this week`,
+      silent: false
+    }).show()
+  })
+  goalsService.start()
+
+  teardownIpc = registerIpcBridge(
+    timer,
+    db,
+    autoSaver,
+    goalsService,
+    pendingRecovery
+  )
 
   tray = new TrayController(
     timer,
@@ -145,5 +166,6 @@ app.on('before-quit', () => {
   shortcuts?.unregisterAll()
   tray?.stop()
   autoSaver?.stop()
+  goalsService?.stop()
   teardownIpc?.()
 })

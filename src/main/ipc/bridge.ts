@@ -9,6 +9,8 @@ import type {
 } from '../timer/TimerService'
 import type { DB } from '../db/schema'
 import type { AutoSaver } from '../autosave/AutoSaver'
+import type { GoalsService } from '../goals/GoalsService'
+import { getGoalsUnlocked, setGoalsUnlocked } from '../db/settings'
 import {
   getLogDates,
   getLogsByDate,
@@ -31,6 +33,7 @@ export function registerIpcBridge(
   timer: TimerService,
   db: Kysely<DB>,
   autoSaver: AutoSaver,
+  goalsService: GoalsService,
   pendingRecovery: { current: RecoveryInfo | null }
 ): () => void {
   // Timer commands
@@ -88,6 +91,21 @@ export function registerIpcBridge(
   ipcMain.handle(CMD.DeleteLogsForDate, async (_e, date: string) => {
     await deleteLogsForDate(db, date)
   })
+
+  // Goals + paywall
+  ipcMain.handle(CMD.ListGoalProgress, () => goalsService.listProgress())
+  ipcMain.handle(
+    CMD.SetGoal,
+    (_e, contextId: string, targetSecondsPerWeek: number) =>
+      goalsService.setGoal(contextId, targetSecondsPerWeek)
+  )
+  ipcMain.handle(CMD.DeleteGoal, (_e, contextId: string) =>
+    goalsService.deleteGoal(contextId)
+  )
+  ipcMain.handle(CMD.GetGoalsUnlocked, () => getGoalsUnlocked(db))
+  ipcMain.handle(CMD.SetGoalsUnlocked, (_e, unlocked: boolean) =>
+    setGoalsUnlocked(db, unlocked)
+  )
 
   // CSV
   ipcMain.handle(

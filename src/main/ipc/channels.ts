@@ -21,7 +21,12 @@ export const CMD = {
   DeleteLogEntry: 'stint:cmd:deleteLogEntry',
   DeleteLogsForDate: 'stint:cmd:deleteLogsForDate',
   ExportCsv: 'stint:cmd:exportCsv',
-  ImportCsv: 'stint:cmd:importCsv'
+  ImportCsv: 'stint:cmd:importCsv',
+  ListGoalProgress: 'stint:cmd:listGoalProgress',
+  SetGoal: 'stint:cmd:setGoal',
+  DeleteGoal: 'stint:cmd:deleteGoal',
+  GetGoalsUnlocked: 'stint:cmd:getGoalsUnlocked',
+  SetGoalsUnlocked: 'stint:cmd:setGoalsUnlocked'
 } as const
 
 export const EVT = {
