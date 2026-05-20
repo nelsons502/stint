@@ -1,0 +1,94 @@
+import { Kysely } from 'kysely'
+import type { DB } from './schema'
+
+export interface DailyLogEntry {
+  date: string
+  contextName: string
+  durationSeconds: number
+  contextId: string | null
+  createdAt: number
+}
+
+export interface ArchiveEntry {
+  contextId: string
+  contextName: string
+  durationSeconds: number
+}
+
+/**
+ * Writes all per-context times for a given day to daily_logs in one
+ * transaction. Entries with durationSeconds <= 0 are skipped (the spec says
+ * contexts with no tracked time should be omitted from the day's log).
+ *
+ * If a log row for (date, contextName) already exists, the new value
+ * replaces it.
+ */
+export async function archiveDay(
+  db: Kysely<DB>,
+  date: string,
+  entries: ArchiveEntry[]
+): Promise<void> {
+  const kept = entries.filter((e) => e.durationSeconds > 0)
+  if (kept.length === 0) return
+  const now = Date.now()
+  await db
+    .insertInto('daily_logs')
+    .values(
+      kept.map((e) => ({
+        date,
+        context_name: e.contextName,
+        duration_seconds: e.durationSeconds,
+        context_id: e.contextId,
+        created_at: now
+      }))
+    )
+    .onConflict((oc) =>
+      oc.columns(['date', 'context_name']).doUpdateSet((eb) => ({
+        duration_seconds: eb.ref('excluded.duration_seconds'),
+        context_id: eb.ref('excluded.context_id'),
+        created_at: eb.ref('excluded.created_at')
+      }))
+    )
+    .execute()
+}
+
+export async function getLogsByDate(
+  db: Kysely<DB>,
+  date: string
+): Promise<DailyLogEntry[]> {
+  const rows = await db
+    .selectFrom('daily_logs')
+    .selectAll()
+    .where('date', '=', date)
+    .orderBy('context_name', 'asc')
+    .execute()
+  return rows.map((r) => ({
+    date: r.date,
+    contextName: r.context_name,
+    durationSeconds: r.duration_seconds,
+    contextId: r.context_id,
+    createdAt: r.created_at
+  }))
+}
+
+export async function getLogsByDateRange(
+  db: Kysely<DB>,
+  start: string,
+  end: string
+): Promise<DailyLogEntry[]> {
+  const rows = await db
+    .selectFrom('daily_logs')
+    .selectAll()
+    .where('date', '>=', start)
+    .where('date', '<=', end)
+    .orderBy('date', 'asc')
+    .orderBy('context_name', 'asc')
+    .execute()
+  return rows.map((r) => ({
+    date: r.date,
+    contextName: r.context_name,
+    durationSeconds: r.duration_seconds,
+    contextId: r.context_id,
+    createdAt: r.created_at
+  }))
+}
