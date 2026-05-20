@@ -40,6 +40,48 @@ export interface AutoSaveConfig {
   time: string
 }
 
+export interface HotkeysConfig {
+  openDropdown: string
+  pause: string
+  openMain: string
+  /** Template with literal '{N}', replaced 1..9 at registration time. */
+  quickSwitch: string
+  /** Master switch — if false, no global shortcuts get registered. */
+  enabled: boolean
+}
+
+export type WeekStartDay = 'sunday' | 'monday'
+
+export interface AppSettings {
+  autoSave: AutoSaveConfig
+  startAtLogin: boolean
+  showInDock: boolean
+  weekStart: WeekStartDay
+  /** Default action of the inline Add form: false = Add only, true = Add & Start. */
+  newContextStartImmediately: boolean
+  /** Whether Save & Reset should show its confirmation dialog. */
+  promptBeforeSave: boolean
+  hotkeys: HotkeysConfig
+}
+
+export const DEFAULT_HOTKEYS: HotkeysConfig = {
+  openDropdown: 'CommandOrControl+Shift+T',
+  pause: 'CommandOrControl+Shift+P',
+  openMain: 'CommandOrControl+Shift+L',
+  quickSwitch: 'CommandOrControl+Shift+{N}',
+  enabled: true
+}
+
+export const DEFAULT_APP_SETTINGS: AppSettings = {
+  autoSave: { enabled: false, time: '03:00' },
+  startAtLogin: false,
+  showInDock: false,
+  weekStart: 'sunday',
+  newContextStartImmediately: false,
+  promptBeforeSave: true,
+  hotkeys: DEFAULT_HOTKEYS
+}
+
 export interface GoalProgress {
   contextId: string
   contextName: string
@@ -74,6 +116,8 @@ export interface StintAPI {
   onStateChanged(handler: (snap: TimerSnapshot) => void): () => void
 
   // Settings
+  getAppSettings(): Promise<AppSettings>
+  updateAppSettings(patch: Partial<AppSettings>): Promise<AppSettings>
   getAutoSaveConfig(): Promise<AutoSaveConfig>
   setAutoSaveConfig(config: AutoSaveConfig): Promise<void>
 
@@ -106,6 +150,12 @@ export interface StintAPI {
     errors: { line: number; message: string }[]
     path: string | null
   }>
+
+  // Data management
+  exportAllCsv(): Promise<string | null>
+  backupDatabase(): Promise<string | null>
+  /** Wipes contexts/logs/goals/session and triggers an app relaunch. */
+  clearAllData(): Promise<void>
 }
 
 declare global {

@@ -31,6 +31,8 @@ const api: StintAPI = {
   },
 
   // Settings
+  getAppSettings: () => ipcRenderer.invoke(CMD.GetAppSettings),
+  updateAppSettings: (patch) => ipcRenderer.invoke(CMD.UpdateAppSettings, patch),
   getAutoSaveConfig: () => ipcRenderer.invoke(CMD.GetAutoSaveConfig),
   setAutoSaveConfig: (c: AutoSaveConfig) =>
     ipcRenderer.invoke(CMD.SetAutoSaveConfig, c),
@@ -56,7 +58,12 @@ const api: StintAPI = {
 
   // CSV
   exportCsv: (args) => ipcRenderer.invoke(CMD.ExportCsv, args),
-  importCsv: () => ipcRenderer.invoke(CMD.ImportCsv)
+  importCsv: () => ipcRenderer.invoke(CMD.ImportCsv),
+
+  // Data management
+  exportAllCsv: () => ipcRenderer.invoke(CMD.ExportAllCsv),
+  backupDatabase: () => ipcRenderer.invoke(CMD.BackupDatabase),
+  clearAllData: () => ipcRenderer.invoke(CMD.ClearAllData)
 }
 
 if (process.contextIsolated) {

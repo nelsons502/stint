@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTimerStore, bindIpcToStore, liveSeconds } from '@renderer/store/timer'
+import { useSettingsStore, loadSettings } from '@renderer/store/settings'
 import { useTick } from '@renderer/hooks/useTick'
 import { formatTitle } from '../../shared/format'
 import type { RecoveryInfo, RecoveryChoice } from '../../shared/api'
@@ -13,11 +14,13 @@ import {
 import { TodayView } from '@renderer/components/TodayView'
 import { HistoryView } from '@renderer/components/HistoryView'
 import { ReportsView } from '@renderer/components/ReportsView'
+import { SettingsView } from '@renderer/components/SettingsView'
 import { SaveAndResetDialog } from '@renderer/components/SaveAndResetDialog'
 import { RecoveryDialog } from '@renderer/components/RecoveryDialog'
 
 function App(): React.JSX.Element {
   const snap = useTimerStore()
+  const promptBeforeSave = useSettingsStore((s) => s.promptBeforeSave)
   const tick = useTick(1000)
 
   const [saveOpen, setSaveOpen] = useState(false)
@@ -35,9 +38,18 @@ function App(): React.JSX.Element {
 
   useEffect(() => {
     const unbind = bindIpcToStore()
+    void loadSettings()
     void window.api.getPendingRecovery().then((r) => setRecovery(r))
     return unbind
   }, [])
+
+  const handleSaveClick = async (): Promise<void> => {
+    if (promptBeforeSave) {
+      setSaveOpen(true)
+    } else {
+      await window.api.saveAndReset()
+    }
+  }
 
   const resolveRecovery = async (choice: RecoveryChoice): Promise<void> => {
     await window.api.finalizeRecovery(choice)
@@ -83,9 +95,9 @@ function App(): React.JSX.Element {
           <Button
             variant="outline"
             size="sm"
-            onClick={() => setSaveOpen(true)}
+            onClick={() => void handleSaveClick()}
           >
-            Save &amp; Reset…
+            Save &amp; Reset{promptBeforeSave ? '…' : ''}
           </Button>
         </div>
       </header>
@@ -95,6 +107,7 @@ function App(): React.JSX.Element {
           <TabsTrigger value="today">Today</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="reports">Reports</TabsTrigger>
+          <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="today" className="flex-1 overflow-hidden">
           <TodayView />
@@ -104,6 +117,9 @@ function App(): React.JSX.Element {
         </TabsContent>
         <TabsContent value="reports" className="flex-1 overflow-hidden">
           <ReportsView />
+        </TabsContent>
+        <TabsContent value="settings" className="flex-1 overflow-hidden">
+          <SettingsView />
         </TabsContent>
       </Tabs>
 

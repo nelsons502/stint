@@ -14,6 +14,7 @@ import {
 } from '../../../shared/reports'
 import { toCsv } from '../../../shared/csv'
 import type { DailyLogEntry, GoalProgress } from '../../../shared/api'
+import { useSettingsStore } from '@renderer/store/settings'
 import { PaywallDialog } from './PaywallDialog'
 import { SetGoalDialog } from './SetGoalDialog'
 
@@ -28,21 +29,34 @@ function todayLocal(): string {
 }
 
 export function ReportsView(): React.JSX.Element {
+  const weekStart = useSettingsStore((s) => s.weekStart)
   const [mode, setMode] = useState<Mode>('week')
   const [bounds, setBounds] = useState<PeriodBounds>(() =>
-    weekBoundsFor(todayLocal())
+    weekBoundsFor(todayLocal(), weekStart)
   )
   const [entries, setEntries] = useState<DailyLogEntry[] | null>(null)
+
+  // When the user changes Week starts in Settings, re-snap the current
+  // weekly view to the matching bounds.
+  useEffect(() => {
+    if (mode === 'week') {
+      setBounds((b) => weekBoundsFor(b.start, weekStart))
+    }
+  }, [weekStart, mode])
 
   const setModeAndPeriod = (next: Mode): void => {
     setMode(next)
     setBounds(
-      next === 'week' ? weekBoundsFor(bounds.start) : monthBoundsFor(bounds.start)
+      next === 'week'
+        ? weekBoundsFor(bounds.start, weekStart)
+        : monthBoundsFor(bounds.start)
     )
   }
 
   const shift = (n: number): void => {
-    setBounds((b) => (mode === 'week' ? shiftWeek(b, n) : shiftMonth(b, n)))
+    setBounds((b) =>
+      mode === 'week' ? shiftWeek(b, n, weekStart) : shiftMonth(b, n)
+    )
   }
 
   useEffect(() => {

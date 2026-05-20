@@ -1,14 +1,17 @@
 import { app, BrowserWindow, Notification, shell } from 'electron'
+import { autoUpdater } from 'electron-updater'
 import { join } from 'node:path'
 import { electronApp, is } from '@electron-toolkit/utils'
 import { openAndMigrate } from './db/open'
 import { TimerService, type RecoveryInfo } from './timer/TimerService'
 import { TrayController } from './tray/TrayController'
-import { ShortcutManager, DEFAULT_SHORTCUTS } from './shortcuts/ShortcutManager'
+import { ShortcutManager } from './shortcuts/ShortcutManager'
 import { registerIpcBridge, sendInitialSnapshot } from './ipc/bridge'
 import { AutoSaver } from './autosave/AutoSaver'
 import { GoalsService } from './goals/GoalsService'
+import { getAppSettings } from './db/settings'
 import { formatHMS } from '../shared/format'
+import type { AppSettings } from '../shared/api'
 
 let mainWindow: BrowserWindow | null = null
 let tray: TrayController | null = null
@@ -20,9 +23,6 @@ let teardownIpc: (() => void) | null = null
 const pendingRecovery: { current: RecoveryInfo | null } = { current: null }
 
 function getResourcesPath(): string {
-  // In dev, resources/ sits at the project root. In production,
-  // electron-builder.yml's extraResources copies the directory under
-  // process.resourcesPath/resources.
   return is.dev
     ? join(app.getAppPath(), 'resources')
     : join(process.resourcesPath, 'resources')
@@ -71,18 +71,34 @@ function createMainWindow(): BrowserWindow {
   return mainWindow
 }
 
-app.whenReady().then(async () => {
-  electronApp.setAppUserModelId('com.nelsonschnepf.stint')
-
-  // Stint is a menubar app — no Dock icon by default. (Configurable later.)
-  if (process.platform === 'darwin') {
+function applyDockVisibility(showInDock: boolean): void {
+  if (process.platform !== 'darwin') return
+  if (showInDock) {
+    app.dock?.show().catch(() => {
+      // dock.show is async in newer Electron; ignore reject
+    })
+  } else {
     app.dock?.hide()
   }
+}
+
+function applyStartAtLogin(startAtLogin: boolean): void {
+  // setLoginItemSettings is a no-op on Linux but supported on macOS + Windows.
+  app.setLoginItemSettings({ openAtLogin: startAtLogin })
+}
+
+app.whenReady().then(async () => {
+  electronApp.setAppUserModelId('com.nelsonschnepf.stint')
 
   const dbPath = is.dev
     ? join(app.getPath('userData'), 'stint.dev.db')
     : join(app.getPath('userData'), 'stint.db')
   const db = await openAndMigrate(dbPath)
+
+  // Read settings up front so we apply them before any UI exists.
+  const settings = await getAppSettings(db)
+  applyDockVisibility(settings.showInDock)
+  applyStartAtLogin(settings.startAtLogin)
 
   timer = new TimerService(db)
   pendingRecovery.current = await timer.init()
@@ -97,15 +113,8 @@ app.whenReady().then(async () => {
       silent: false
     }).show()
   })
+  goalsService.setWeekStart(settings.weekStart)
   goalsService.start()
-
-  teardownIpc = registerIpcBridge(
-    timer,
-    db,
-    autoSaver,
-    goalsService,
-    pendingRecovery
-  )
 
   tray = new TrayController(
     timer,
@@ -120,7 +129,6 @@ app.whenReady().then(async () => {
         createMainWindow()
       },
       openSettings: () => {
-        // Settings UI isn't built yet in Phase 1 — open main window for now.
         createMainWindow()
       },
       addContext: () => {
@@ -139,7 +147,6 @@ app.whenReady().then(async () => {
 
   shortcuts = new ShortcutManager(timer, {
     openDropdown: () => {
-      // No popup window without a custom dropdown — open main window instead.
       createMainWindow()
     },
     pause: () => {
@@ -149,11 +156,65 @@ app.whenReady().then(async () => {
       createMainWindow()
     }
   })
-  shortcuts.applyConfig(DEFAULT_SHORTCUTS)
+  shortcuts.applyConfig(settings.hotkeys)
 
-  // If recovery is pending, surface the main window so the user can choose.
+  const onSettingsApplied = async (
+    next: AppSettings,
+    patch: Partial<AppSettings>
+  ): Promise<void> => {
+    if (patch.startAtLogin !== undefined) applyStartAtLogin(next.startAtLogin)
+    if (patch.showInDock !== undefined) applyDockVisibility(next.showInDock)
+    if (patch.weekStart !== undefined) goalsService?.setWeekStart(next.weekStart)
+    if (patch.hotkeys !== undefined) shortcuts?.applyConfig(next.hotkeys)
+    if (patch.autoSave !== undefined && autoSaver) {
+      await autoSaver.updateConfig(next.autoSave)
+    }
+  }
+
+  const onClearAllData = (): void => {
+    // Clean shutdown of all services, then relaunch so the fresh DB state
+    // is loaded by a new TimerService init().
+    app.relaunch()
+    app.exit(0)
+  }
+
+  teardownIpc = registerIpcBridge(
+    {
+      timer,
+      db,
+      dbPath,
+      autoSaver,
+      goalsService,
+      onSettingsApplied,
+      onClearAllData
+    },
+    pendingRecovery
+  )
+
   if (pendingRecovery.current) {
     createMainWindow()
+  }
+
+  // --- Auto-updates -----------------------------------------------------
+  // electron-updater downloads in the background. With autoInstallOnAppQuit,
+  // updates apply only when the user quits the app naturally — so an active
+  // timer is never interrupted. We don't proactively quitAndInstall.
+  if (!is.dev) {
+    autoUpdater.autoDownload = true
+    autoUpdater.autoInstallOnAppQuit = true
+    autoUpdater.on('update-downloaded', () => {
+      new Notification({
+        title: 'Stint update ready',
+        body: 'The update will install the next time you quit Stint.',
+        silent: true
+      }).show()
+    })
+    autoUpdater.on('error', (err) => {
+      console.error('autoUpdater error:', err)
+    })
+    autoUpdater.checkForUpdatesAndNotify().catch((err) => {
+      console.error('checkForUpdatesAndNotify failed:', err)
+    })
   }
 })
 

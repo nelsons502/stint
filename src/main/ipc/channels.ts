@@ -26,7 +26,12 @@ export const CMD = {
   SetGoal: 'stint:cmd:setGoal',
   DeleteGoal: 'stint:cmd:deleteGoal',
   GetGoalsUnlocked: 'stint:cmd:getGoalsUnlocked',
-  SetGoalsUnlocked: 'stint:cmd:setGoalsUnlocked'
+  SetGoalsUnlocked: 'stint:cmd:setGoalsUnlocked',
+  GetAppSettings: 'stint:cmd:getAppSettings',
+  UpdateAppSettings: 'stint:cmd:updateAppSettings',
+  BackupDatabase: 'stint:cmd:backupDatabase',
+  ClearAllData: 'stint:cmd:clearAllData',
+  ExportAllCsv: 'stint:cmd:exportAllCsv'
 } as const
 
 export const EVT = {

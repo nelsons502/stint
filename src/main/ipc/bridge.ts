@@ -10,7 +10,6 @@ import type {
 import type { DB } from '../db/schema'
 import type { AutoSaver } from '../autosave/AutoSaver'
 import type { GoalsService } from '../goals/GoalsService'
-import { getGoalsUnlocked, setGoalsUnlocked } from '../db/settings'
 import {
   getLogDates,
   getLogsByDate,
@@ -21,22 +20,45 @@ import {
   archiveDay
 } from '../db/logs'
 import { CMD, EVT } from './channels'
-import type { AddContextInput, AutoSaveConfig } from '../../shared/api'
-import { parseCsv } from '../../shared/csv'
+import {
+  getAppSettings,
+  updateAppSettings,
+  getGoalsUnlocked,
+  setGoalsUnlocked
+} from '../db/settings'
+import type {
+  AddContextInput,
+  AppSettings,
+  AutoSaveConfig
+} from '../../shared/api'
+import { parseCsv, toCsv } from '../../shared/csv'
+
+export interface IpcDeps {
+  timer: TimerService
+  db: Kysely<DB>
+  dbPath: string
+  autoSaver: AutoSaver
+  goalsService: GoalsService
+  onSettingsApplied: (
+    next: AppSettings,
+    patch: Partial<AppSettings>
+  ) => Promise<void>
+  /** Called after ClearAllData; expected to relaunch the app. */
+  onClearAllData: () => void
+}
 
 /**
- * Wires command handlers and state broadcasts between TimerService and the
- * renderer process(es). `getPendingRecovery` returns the RecoveryInfo from
- * the most recent init() until finalizeRecovery() is called.
+ * Wires every IPC channel against the corresponding service. Returns a
+ * teardown that removes every handler.
  */
 export function registerIpcBridge(
-  timer: TimerService,
-  db: Kysely<DB>,
-  autoSaver: AutoSaver,
-  goalsService: GoalsService,
+  deps: IpcDeps,
   pendingRecovery: { current: RecoveryInfo | null }
 ): () => void {
-  // Timer commands
+  const { timer, db, dbPath, autoSaver, goalsService, onSettingsApplied, onClearAllData } =
+    deps
+
+  // Timer
   ipcMain.handle(CMD.GetSnapshot, () => timer.getSnapshot())
   ipcMain.handle(CMD.SwitchTo, (_e, contextId: string) =>
     timer.switchTo(contextId)
@@ -66,6 +88,15 @@ export function registerIpcBridge(
   })
 
   // Settings
+  ipcMain.handle(CMD.GetAppSettings, () => getAppSettings(db))
+  ipcMain.handle(
+    CMD.UpdateAppSettings,
+    async (_e, patch: Partial<AppSettings>): Promise<AppSettings> => {
+      const next = await updateAppSettings(db, patch)
+      await onSettingsApplied(next, patch)
+      return next
+    }
+  )
   ipcMain.handle(CMD.GetAutoSaveConfig, () => autoSaver.getConfig())
   ipcMain.handle(CMD.SetAutoSaveConfig, (_e, c: AutoSaveConfig) =>
     autoSaver.updateConfig(c)
@@ -114,22 +145,9 @@ export function registerIpcBridge(
       _e,
       args: { suggestedFilename: string; content: string }
     ): Promise<string | null> => {
-      const focused = BrowserWindow.getFocusedWindow()
-      const result = focused
-        ? await dialog.showSaveDialog(focused, {
-            defaultPath: args.suggestedFilename,
-            filters: [{ name: 'CSV', extensions: ['csv'] }]
-          })
-        : await dialog.showSaveDialog({
-            defaultPath: args.suggestedFilename,
-            filters: [{ name: 'CSV', extensions: ['csv'] }]
-          })
-      if (result.canceled || !result.filePath) return null
-      await fs.writeFile(result.filePath, args.content, 'utf8')
-      return result.filePath
+      return showSaveDialogAndWrite(args.suggestedFilename, args.content)
     }
   )
-
   ipcMain.handle(
     CMD.ImportCsv,
     async (): Promise<{
@@ -153,7 +171,6 @@ export function registerIpcBridge(
       const path = result.filePaths[0]!
       const content = await fs.readFile(path, 'utf8')
       const parsed = parseCsv(content)
-      // Group by date so archiveDay can upsert atomically per date.
       const byDate = new Map<
         string,
         { contextId: string | null; contextName: string; durationSeconds: number }[]
@@ -176,6 +193,59 @@ export function registerIpcBridge(
     }
   )
 
+  // Data management
+  ipcMain.handle(CMD.ExportAllCsv, async (): Promise<string | null> => {
+    const all = await db
+      .selectFrom('daily_logs')
+      .selectAll()
+      .orderBy('date', 'asc')
+      .orderBy('context_name', 'asc')
+      .execute()
+    const csv = toCsv(
+      all.map((l) => ({
+        date: l.date,
+        context: l.context_name,
+        durationSeconds: l.duration_seconds
+      }))
+    )
+    return showSaveDialogAndWrite('stint-all.csv', csv)
+  })
+
+  ipcMain.handle(CMD.BackupDatabase, async (): Promise<string | null> => {
+    const focused = BrowserWindow.getFocusedWindow()
+    const ts = new Date()
+      .toISOString()
+      .slice(0, 16)
+      .replace(/[:T]/g, '-')
+    const suggested = `stint-backup-${ts}.db`
+    const result = focused
+      ? await dialog.showSaveDialog(focused, {
+          defaultPath: suggested,
+          filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }]
+        })
+      : await dialog.showSaveDialog({
+          defaultPath: suggested,
+          filters: [{ name: 'SQLite Database', extensions: ['db', 'sqlite'] }]
+        })
+    if (result.canceled || !result.filePath) return null
+    await fs.copyFile(dbPath, result.filePath)
+    return result.filePath
+  })
+
+  ipcMain.handle(CMD.ClearAllData, async (): Promise<void> => {
+    await db.transaction().execute(async (trx) => {
+      // Order matters for FK constraints, but all our FKs cascade/set-null
+      // so any order works. Preserve app_settings (auto-save config, paywall
+      // unlock, hotkeys, etc.) so the user doesn't lose their preferences.
+      await trx.deleteFrom('goals').execute()
+      await trx.deleteFrom('daily_logs').execute()
+      await trx.deleteFrom('today_seconds').execute()
+      await trx.deleteFrom('contexts').execute()
+      await trx.deleteFrom('session').execute()
+    })
+    onClearAllData()
+  })
+
   // State broadcast
   const broadcast = (snap: TimerSnapshot): void => {
     for (const wc of webContents.getAllWebContents()) {
@@ -188,6 +258,25 @@ export function registerIpcBridge(
     timer.off('state-changed', broadcast)
     for (const ch of Object.values(CMD)) ipcMain.removeHandler(ch)
   }
+}
+
+async function showSaveDialogAndWrite(
+  suggestedFilename: string,
+  content: string
+): Promise<string | null> {
+  const focused = BrowserWindow.getFocusedWindow()
+  const result = focused
+    ? await dialog.showSaveDialog(focused, {
+        defaultPath: suggestedFilename,
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+      })
+    : await dialog.showSaveDialog({
+        defaultPath: suggestedFilename,
+        filters: [{ name: 'CSV', extensions: ['csv'] }]
+      })
+  if (result.canceled || !result.filePath) return null
+  await fs.writeFile(result.filePath, content, 'utf8')
+  return result.filePath
 }
 
 /** Helper to send an initial snapshot to a freshly-created window. */

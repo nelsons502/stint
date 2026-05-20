@@ -1,5 +1,11 @@
 import { Kysely } from 'kysely'
 import type { DB } from './schema'
+import type {
+  AppSettings,
+  HotkeysConfig,
+  WeekStartDay
+} from '../../shared/api'
+import { DEFAULT_APP_SETTINGS, DEFAULT_HOTKEYS } from '../../shared/api'
 
 /** Known setting keys. Centralized so the codebase has one source. */
 export const SettingsKeys = {
@@ -11,7 +17,14 @@ export const SettingsKeys = {
    * anything else = locked. The architecture is designed so this gate can be
    * swapped for a server-side check later without touching the UI.
    */
-  GoalsUnlocked: 'goalsUnlocked'
+  GoalsUnlocked: 'goalsUnlocked',
+  StartAtLogin: 'startAtLogin',
+  ShowInDock: 'showInDock',
+  WeekStart: 'weekStart',
+  NewContextStartImmediately: 'newContextStartImmediately',
+  PromptBeforeSave: 'promptBeforeSave',
+  /** JSON-encoded HotkeysConfig. */
+  Hotkeys: 'hotkeys'
 } as const
 
 export type SettingsKey = (typeof SettingsKeys)[keyof typeof SettingsKeys]
@@ -93,3 +106,79 @@ export async function setGoalsUnlocked(
 ): Promise<void> {
   await setSetting(db, SettingsKeys.GoalsUnlocked, String(unlocked))
 }
+
+function parseHotkeys(raw: string | null): HotkeysConfig {
+  if (raw === null) return DEFAULT_HOTKEYS
+  try {
+    const parsed = JSON.parse(raw) as Partial<HotkeysConfig>
+    return { ...DEFAULT_HOTKEYS, ...parsed }
+  } catch {
+    return DEFAULT_HOTKEYS
+  }
+}
+
+/** Reads every setting, falling back to defaults for any that are unset. */
+export async function getAppSettings(db: Kysely<DB>): Promise<AppSettings> {
+  const all = await getAllSettings(db)
+  const autoSave = await getAutoSaveConfig(db)
+  const weekStart =
+    all[SettingsKeys.WeekStart] === 'monday'
+      ? ('monday' as WeekStartDay)
+      : ('sunday' as WeekStartDay)
+  return {
+    autoSave,
+    startAtLogin: all[SettingsKeys.StartAtLogin] === 'true',
+    showInDock: all[SettingsKeys.ShowInDock] === 'true',
+    weekStart,
+    newContextStartImmediately:
+      all[SettingsKeys.NewContextStartImmediately] === 'true',
+    promptBeforeSave: all[SettingsKeys.PromptBeforeSave] !== 'false',
+    hotkeys: parseHotkeys(all[SettingsKeys.Hotkeys] ?? null)
+  }
+}
+
+/**
+ * Persists a patch of settings. Returns the full merged settings after the
+ * write. Side effects (login item, dock visibility, hotkey re-registration,
+ * etc.) are NOT applied here — the caller (main entry / IPC handler) owns
+ * those because they depend on Electron's app/dock APIs which can't be
+ * touched from a pure persistence layer.
+ */
+export async function updateAppSettings(
+  db: Kysely<DB>,
+  patch: Partial<AppSettings>
+): Promise<AppSettings> {
+  if (patch.autoSave !== undefined) {
+    await setAutoSaveConfig(db, patch.autoSave)
+  }
+  if (patch.startAtLogin !== undefined) {
+    await setSetting(db, SettingsKeys.StartAtLogin, String(patch.startAtLogin))
+  }
+  if (patch.showInDock !== undefined) {
+    await setSetting(db, SettingsKeys.ShowInDock, String(patch.showInDock))
+  }
+  if (patch.weekStart !== undefined) {
+    await setSetting(db, SettingsKeys.WeekStart, patch.weekStart)
+  }
+  if (patch.newContextStartImmediately !== undefined) {
+    await setSetting(
+      db,
+      SettingsKeys.NewContextStartImmediately,
+      String(patch.newContextStartImmediately)
+    )
+  }
+  if (patch.promptBeforeSave !== undefined) {
+    await setSetting(
+      db,
+      SettingsKeys.PromptBeforeSave,
+      String(patch.promptBeforeSave)
+    )
+  }
+  if (patch.hotkeys !== undefined) {
+    await setSetting(db, SettingsKeys.Hotkeys, JSON.stringify(patch.hotkeys))
+  }
+  return getAppSettings(db)
+}
+
+/** Hardcoded defaults exported here for tests that compare snapshots. */
+export const APP_SETTINGS_DEFAULTS = DEFAULT_APP_SETTINGS

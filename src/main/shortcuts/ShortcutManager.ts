@@ -1,19 +1,12 @@
 import { globalShortcut } from 'electron'
 import type { TimerService, TimerSnapshot } from '../timer/TimerService'
+import type { HotkeysConfig } from '../../shared/api'
+import { DEFAULT_HOTKEYS } from '../../shared/api'
 
-export interface ShortcutConfig {
-  openDropdown: string  // currently no-op without a popup window
-  pause: string
-  openMain: string
-  quickSwitch: string   // template; '{N}' replaced with 1..9
-}
+/** Alias kept for historical call sites; the canonical type lives in shared/api. */
+export type ShortcutConfig = HotkeysConfig
 
-export const DEFAULT_SHORTCUTS: ShortcutConfig = {
-  openDropdown: 'CommandOrControl+Shift+T',
-  pause: 'CommandOrControl+Shift+P',
-  openMain: 'CommandOrControl+Shift+L',
-  quickSwitch: 'CommandOrControl+Shift+{N}'
-}
+export const DEFAULT_SHORTCUTS: ShortcutConfig = DEFAULT_HOTKEYS
 
 export interface ShortcutHandlers {
   openDropdown: () => void
@@ -45,6 +38,12 @@ export class ShortcutManager {
     this.currentConfig = config
     const registered: string[] = []
     const failed: string[] = []
+
+    // Master switch — when disabled, persist the config but don't register
+    // anything. Users can flip it back on to restore without losing combos.
+    if (config.enabled === false) {
+      return { registered, failed }
+    }
 
     const tryReg = (combo: string, fn: () => void): void => {
       if (globalShortcut.isRegistered(combo)) {

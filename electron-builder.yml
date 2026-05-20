@@ -44,5 +44,7 @@ appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
 publish:
-  provider: generic
-  url: https://example.com/auto-updates
+  provider: github
+  # Replace with the actual repo before publishing the first release.
+  owner: nelsonschnepf
+  repo: stint

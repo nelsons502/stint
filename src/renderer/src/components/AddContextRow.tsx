@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
+import { useSettingsStore } from '@renderer/store/settings'
 
 export function AddContextRow(): React.JSX.Element {
   const [name, setName] = useState('')
@@ -9,6 +10,9 @@ export function AddContextRow(): React.JSX.Element {
   // in Settings. Users can still tick the checkbox to make this one stick.
   const [isRecurring, setIsRecurring] = useState(false)
   const [busy, setBusy] = useState(false)
+  const newContextStartImmediately = useSettingsStore(
+    (s) => s.newContextStartImmediately
+  )
 
   const submit = async (
     e: FormEvent,
@@ -32,7 +36,7 @@ export function AddContextRow(): React.JSX.Element {
 
   return (
     <form
-      onSubmit={(e) => void submit(e, false)}
+      onSubmit={(e) => void submit(e, newContextStartImmediately)}
       className="flex items-center gap-2 border-t pt-3"
     >
       <Input
