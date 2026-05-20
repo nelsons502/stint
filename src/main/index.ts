@@ -1,24 +1,47 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
-import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { app, BrowserWindow, shell } from 'electron'
+import { join } from 'node:path'
+import { electronApp, is } from '@electron-toolkit/utils'
+import { openAndMigrate } from './db/open'
+import { TimerService, type RecoveryInfo } from './timer/TimerService'
+import { TrayController } from './tray/TrayController'
+import { ShortcutManager, DEFAULT_SHORTCUTS } from './shortcuts/ShortcutManager'
+import { registerIpcBridge, sendInitialSnapshot } from './ipc/bridge'
 
-function createWindow(): void {
-  // Create the browser window.
-  const mainWindow = new BrowserWindow({
-    width: 900,
-    height: 670,
+let mainWindow: BrowserWindow | null = null
+let tray: TrayController | null = null
+let shortcuts: ShortcutManager | null = null
+let timer: TimerService | null = null
+let teardownIpc: (() => void) | null = null
+const pendingRecovery: { current: RecoveryInfo | null } = { current: null }
+
+function getResourcesPath(): string {
+  // In dev, resources/ sits at the project root. In production, it's
+  // bundled next to the app under process.resourcesPath.
+  return is.dev ? join(app.getAppPath(), 'resources') : process.resourcesPath
+}
+
+function createMainWindow(): BrowserWindow {
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.show()
+    mainWindow.focus()
+    return mainWindow
+  }
+
+  mainWindow = new BrowserWindow({
+    width: 780,
+    height: 600,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    titleBarStyle: 'hiddenInset',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
-      sandbox: false
+      sandbox: false,
+      contextIsolation: true
     }
   })
 
   mainWindow.on('ready-to-show', () => {
-    mainWindow.show()
+    mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -26,49 +49,95 @@ function createWindow(): void {
     return { action: 'deny' }
   })
 
-  // HMR for renderer base on electron-vite cli.
-  // Load the remote URL for development or the local html file for production.
+  mainWindow.on('closed', () => {
+    mainWindow = null
+  })
+
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
   }
+
+  if (timer) sendInitialSnapshot(mainWindow, timer)
+  return mainWindow
 }
 
-// This method will be called when Electron has finished
-// initialization and is ready to create browser windows.
-// Some APIs can only be used after this event occurs.
-app.whenReady().then(() => {
-  // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+app.whenReady().then(async () => {
+  electronApp.setAppUserModelId('com.nelsonschnepf.stint')
 
-  // Default open or close DevTools by F12 in development
-  // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
-  app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+  // Stint is a menubar app — no Dock icon by default. (Configurable later.)
+  if (process.platform === 'darwin') {
+    app.dock?.hide()
+  }
+
+  const dbPath = is.dev
+    ? join(app.getPath('userData'), 'stint.dev.db')
+    : join(app.getPath('userData'), 'stint.db')
+  const db = await openAndMigrate(dbPath)
+
+  timer = new TimerService(db)
+  pendingRecovery.current = await timer.init()
+
+  teardownIpc = registerIpcBridge(timer, pendingRecovery)
+
+  tray = new TrayController(
+    timer,
+    {
+      switchTo: (id) => {
+        void timer!.switchTo(id)
+      },
+      pause: () => {
+        void timer!.pause()
+      },
+      openMain: () => {
+        createMainWindow()
+      },
+      openSettings: () => {
+        // Settings UI isn't built yet in Phase 1 — open main window for now.
+        createMainWindow()
+      },
+      addContext: () => {
+        createMainWindow()
+      },
+      saveAndReset: () => {
+        createMainWindow()
+      },
+      quit: () => {
+        app.quit()
+      }
+    },
+    getResourcesPath()
+  )
+  tray.start()
+
+  shortcuts = new ShortcutManager(timer, {
+    openDropdown: () => {
+      // No popup window without a custom dropdown — open main window instead.
+      createMainWindow()
+    },
+    pause: () => {
+      void timer!.pause()
+    },
+    openMain: () => {
+      createMainWindow()
+    }
   })
+  shortcuts.applyConfig(DEFAULT_SHORTCUTS)
 
-  // IPC test
-  ipcMain.on('ping', () => console.log('pong'))
-
-  createWindow()
-
-  app.on('activate', function () {
-    // On macOS it's common to re-create a window in the app when the
-    // dock icon is clicked and there are no other windows open.
-    if (BrowserWindow.getAllWindows().length === 0) createWindow()
-  })
-})
-
-// Quit when all windows are closed, except on macOS. There, it's common
-// for applications and their menu bar to stay active until the user quits
-// explicitly with Cmd + Q.
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit()
+  // If recovery is pending, surface the main window so the user can choose.
+  if (pendingRecovery.current) {
+    createMainWindow()
   }
 })
 
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.
+app.on('window-all-closed', () => {
+  // Stay alive on macOS — Stint is a menubar app. Quitting goes through
+  // the tray's Quit item (or Cmd+Q from a focused window).
+})
+
+app.on('before-quit', () => {
+  shortcuts?.unregisterAll()
+  tray?.stop()
+  teardownIpc?.()
+})

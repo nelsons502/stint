@@ -1,8 +1,3 @@
-import { ElectronAPI } from '@electron-toolkit/preload'
-
-declare global {
-  interface Window {
-    electron: ElectronAPI
-    api: unknown
-  }
-}
+// The `window.api` type is declared globally via src/shared/api.ts so it
+// flows through to the renderer without needing to import a type file.
+import '../shared/api'

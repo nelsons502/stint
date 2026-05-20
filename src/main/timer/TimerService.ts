@@ -4,8 +4,7 @@ import type { DB } from '../db/schema'
 import {
   listContexts,
   createContext,
-  deleteNonRecurring,
-  type Context
+  deleteNonRecurring
 } from '../db/contexts'
 import { getSession, setSession, type Session } from '../db/session'
 import {
@@ -15,37 +14,19 @@ import {
   resetAllTodaySeconds
 } from '../db/today'
 import { archiveDay, type ArchiveEntry } from '../db/logs'
+import type {
+  ContextWithSeconds,
+  TimerSnapshot,
+  RecoveryInfo,
+  RecoveryChoice
+} from '../../shared/api'
 
-/** Context with its live today_seconds folded in. */
-export interface ContextWithSeconds extends Context {
-  todaySeconds: number
+export type {
+  ContextWithSeconds,
+  TimerSnapshot,
+  RecoveryInfo,
+  RecoveryChoice
 }
-
-/**
- * The "checkpoint snapshot" pushed to renderer + tray on every transition.
- * Consumers compute live elapsed locally from (now - activeStartedAtMs) +
- * the active context's todaySeconds.
- */
-export interface TimerSnapshot {
-  activeContextId: string | null
-  activeStartedAtMs: number | null
-  sessionDate: string
-  contexts: ContextWithSeconds[]
-}
-
-/**
- * If the previous process exited while a timer was running, init() returns
- * a RecoveryInfo describing the in-flight run. The caller must then ask the
- * user how to handle it and call finalizeRecovery() with their choice.
- */
-export interface RecoveryInfo {
-  activeContextId: string
-  activeContextName: string
-  activeStartedAtMs: number
-  elapsedSinceStartSeconds: number
-}
-
-export type RecoveryChoice = 'discard' | 'resume-since' | 'resume-now'
 
 /** Format a Date as YYYY-MM-DD in local time. */
 function localDateString(d: Date): string {

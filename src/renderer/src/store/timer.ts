@@ -1,31 +1,43 @@
 import { create } from 'zustand'
+import type { TimerSnapshot } from '../../../shared/api'
 
-export interface Context {
-  id: string
-  name: string
-  /** committed accumulated time today, in seconds */
-  todaySeconds: number
-  /** display order; drives the Cmd+Shift+1..9 hotkey mapping */
-  order: number
-  /** recurring (defined in settings) vs ad-hoc (added on the fly) */
-  recurring: boolean
-}
-
-export interface TimerState {
-  /** null when paused */
-  activeContextId: string | null
-  /** unix ms when the current run began; null when paused */
-  activeStartedAtMs: number | null
-  contexts: Context[]
-}
-
-const initialState: TimerState = {
+const initialState: TimerSnapshot = {
   activeContextId: null,
   activeStartedAtMs: null,
+  sessionDate: '',
   contexts: []
 }
 
 // The renderer-side cache of state owned by the main process.
 // Updates flow in one direction: main -> IPC -> setState here.
-// All mutations originate from main; we never setState from React event handlers.
-export const useTimerStore = create<TimerState>(() => initialState)
+// Components dispatch commands through window.api.* (which goes back to main);
+// they never setState directly.
+export const useTimerStore = create<TimerSnapshot>(() => initialState)
+
+/**
+ * Computes live "today" seconds for a context, including the in-progress
+ * run if it is the active one. Pure function so it can be called from
+ * components without state churn.
+ */
+export function liveSeconds(
+  contextId: string,
+  contextTodaySeconds: number,
+  state: Pick<TimerSnapshot, 'activeContextId' | 'activeStartedAtMs'>,
+  now: number
+): number {
+  if (
+    contextId === state.activeContextId &&
+    state.activeStartedAtMs !== null
+  ) {
+    return contextTodaySeconds + (now - state.activeStartedAtMs) / 1000
+  }
+  return contextTodaySeconds
+}
+
+/** Wires the IPC bridge into the store. Call once on app mount. */
+export function bindIpcToStore(): () => void {
+  // Push the initial snapshot in.
+  void window.api.getSnapshot().then((snap) => useTimerStore.setState(snap))
+  // Subscribe to subsequent broadcasts.
+  return window.api.onStateChanged((snap) => useTimerStore.setState(snap))
+}
