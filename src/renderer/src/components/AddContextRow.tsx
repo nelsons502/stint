@@ -29,6 +29,8 @@ export function AddContextRow(): React.JSX.Element {
         startImmediately
       })
       setName('')
+    } catch (err) {
+      console.error('Failed to add context:', err)
     } finally {
       setBusy(false)
     }

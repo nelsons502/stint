@@ -1,11 +1,11 @@
 <!--
-  Stint tray icon: a bold capital S with a stylized lowercase "t" carved
-  through it (the slash is the t's stem, the short perpendicular line near
-  the top is the crossbar) — invoking the "St" of "Stint".
+  Stint tray icon: a bold capital S with a forward slash running through it,
+  in the spirit of a $ sign but with the | swapped for a /.
 
   Designed to be rendered as a macOS template image (monochrome, with
   setTemplateImage(true) at runtime so macOS handles light/dark inversion).
-  Authored at 32x32; rasterized by scripts/build-icons.mjs.
+  Authored at 32x32; rasterized to 16x16 and 32x32 (@2x) PNGs by
+  scripts/build-icons.mjs.
 -->
 <svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
   <text
@@ -17,7 +17,6 @@
     text-anchor="middle"
     fill="#000000"
   >S</text>
-  <!-- Stem of the t -->
   <line
     x1="26"
     y1="3"
@@ -25,18 +24,6 @@
     y2="29"
     stroke="#000000"
     stroke-width="3.5"
-    stroke-linecap="round"
-  />
-  <!-- Crossbar: perpendicular to the stem, centered at (22, 7) where the
-       stem exits the top of the S. Length 13, sticks out past the stem on
-       both sides like the crossbar of a lowercase t. -->
-  <line
-    x1="16.9"
-    y1="3.0"
-    x2="27.1"
-    y2="11.0"
-    stroke="#000000"
-    stroke-width="3.0"
     stroke-linecap="round"
   />
 </svg>
