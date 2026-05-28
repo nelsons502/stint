@@ -45,6 +45,5 @@ appImage:
 npmRebuild: false
 publish:
   provider: github
-  # Replace with the actual repo before publishing the first release.
-  owner: nelsonschnepf
+  owner: nelsons502
   repo: stint
