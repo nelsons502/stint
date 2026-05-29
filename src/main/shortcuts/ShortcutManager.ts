@@ -78,25 +78,36 @@ export class ShortcutManager {
     config: ShortcutConfig,
     snap: TimerSnapshot
   ): void {
+    // Template must contain {N}; skip gracefully if corrupted.
+    if (!config.quickSwitch.includes('{N}')) return
+
     // Unregister the existing numbered combos first.
     for (let i = 1; i <= 9; i++) {
       const combo = config.quickSwitch.replace('{N}', String(i))
-      if (globalShortcut.isRegistered(combo)) {
-        // Only unregister combos we registered.
-        if (this.registered.includes(combo)) {
-          globalShortcut.unregister(combo)
-          this.registered = this.registered.filter((c) => c !== combo)
+      try {
+        if (globalShortcut.isRegistered(combo)) {
+          // Only unregister combos we registered.
+          if (this.registered.includes(combo)) {
+            globalShortcut.unregister(combo)
+            this.registered = this.registered.filter((c) => c !== combo)
+          }
         }
+      } catch {
+        // Invalid accelerator — skip silently.
       }
     }
     // Re-register according to current context order.
     snap.contexts.slice(0, 9).forEach((c, idx) => {
       const combo = config.quickSwitch.replace('{N}', String(idx + 1))
-      if (globalShortcut.isRegistered(combo)) return
-      const ok = globalShortcut.register(combo, () => {
-        void this.timer.switchTo(c.id)
-      })
-      if (ok) this.registered.push(combo)
+      try {
+        if (globalShortcut.isRegistered(combo)) return
+        const ok = globalShortcut.register(combo, () => {
+          void this.timer.switchTo(c.id)
+        })
+        if (ok) this.registered.push(combo)
+      } catch {
+        // Invalid accelerator — skip silently.
+      }
     })
   }
 

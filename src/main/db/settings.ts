@@ -111,7 +111,12 @@ function parseHotkeys(raw: string | null): HotkeysConfig {
   if (raw === null) return DEFAULT_HOTKEYS
   try {
     const parsed = JSON.parse(raw) as Partial<HotkeysConfig>
-    return { ...DEFAULT_HOTKEYS, ...parsed }
+    const merged = { ...DEFAULT_HOTKEYS, ...parsed }
+    // quickSwitch must contain the {N} placeholder; reset if corrupted.
+    if (!merged.quickSwitch.includes('{N}')) {
+      merged.quickSwitch = DEFAULT_HOTKEYS.quickSwitch
+    }
+    return merged
   } catch {
     return DEFAULT_HOTKEYS
   }
