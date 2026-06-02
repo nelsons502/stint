@@ -33,7 +33,8 @@ export const CMD = {
   UpdateAppSettings: 'stint:cmd:updateAppSettings',
   BackupDatabase: 'stint:cmd:backupDatabase',
   ClearAllData: 'stint:cmd:clearAllData',
-  ExportAllCsv: 'stint:cmd:exportAllCsv'
+  ExportAllCsv: 'stint:cmd:exportAllCsv',
+  ValidateLicenseKey: 'stint:cmd:validateLicenseKey'
 } as const
 
 export const EVT = {

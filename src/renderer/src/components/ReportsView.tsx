@@ -18,7 +18,7 @@ import { useSettingsStore } from '@renderer/store/settings'
 import { PaywallDialog } from './PaywallDialog'
 import { SetGoalDialog } from './SetGoalDialog'
 
-type Mode = 'week' | 'month'
+type Mode = 'week' | 'month' | 'history'
 
 function todayLocal(): string {
   const d = new Date()
@@ -35,9 +35,13 @@ export function ReportsView(): React.JSX.Element {
     weekBoundsFor(todayLocal(), weekStart)
   )
   const [entries, setEntries] = useState<DailyLogEntry[] | null>(null)
+  const [unlocked, setUnlocked] = useState<boolean | null>(null)
+  const [paywallOpen, setPaywallOpen] = useState(false)
 
-  // When the user changes Week starts in Settings, re-snap the current
-  // weekly view to the matching bounds.
+  useEffect(() => {
+    void window.api.getGoalsUnlocked().then(setUnlocked)
+  }, [])
+
   useEffect(() => {
     if (mode === 'week') {
       setBounds((b) => weekBoundsFor(b.start, weekStart))
@@ -46,11 +50,8 @@ export function ReportsView(): React.JSX.Element {
 
   const setModeAndPeriod = (next: Mode): void => {
     setMode(next)
-    setBounds(
-      next === 'week'
-        ? weekBoundsFor(bounds.start, weekStart)
-        : monthBoundsFor(bounds.start)
-    )
+    if (next === 'week') setBounds(weekBoundsFor(bounds.start, weekStart))
+    else if (next === 'month') setBounds(monthBoundsFor(bounds.start))
   }
 
   const shift = (n: number): void => {
@@ -60,6 +61,7 @@ export function ReportsView(): React.JSX.Element {
   }
 
   useEffect(() => {
+    if (mode === 'history') return
     let cancelled = false
     void window.api
       .getLogsByDateRange(bounds.start, bounds.end)
@@ -69,13 +71,13 @@ export function ReportsView(): React.JSX.Element {
     return () => {
       cancelled = true
     }
-  }, [bounds.start, bounds.end])
+  }, [bounds.start, bounds.end, mode])
 
   const totals = useMemo(() => totalsByContext(entries ?? []), [entries])
   const grandTotal = totals.reduce((s, t) => s + t.durationSeconds, 0)
 
   const exportPeriod = async (): Promise<void> => {
-    if (!entries) return
+    if (!entries || !unlocked) return
     const csv = toCsv(
       entries.map((e) => ({
         date: e.date,
@@ -92,7 +94,7 @@ export function ReportsView(): React.JSX.Element {
     <div className="flex h-full flex-col">
       <header className="flex items-center justify-between border-b px-5 py-3">
         <div className="inline-flex rounded-md border bg-background p-0.5">
-          {(['week', 'month'] as const).map((m) => (
+          {(['week', 'month', 'history'] as const).map((m) => (
             <button
               key={m}
               type="button"
@@ -108,106 +110,274 @@ export function ReportsView(): React.JSX.Element {
             </button>
           ))}
         </div>
-        <div className="flex items-center gap-2">
+
+        {mode !== 'history' && (
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Previous period"
+              onClick={() => shift(-1)}
+            >
+              <ChevronLeft />
+            </Button>
+            <span className="text-sm">{formatPeriodLabel(bounds)}</span>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label="Next period"
+              onClick={() => shift(1)}
+            >
+              <ChevronRight />
+            </Button>
+          </div>
+        )}
+
+        {mode !== 'history' && (
           <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Previous period"
-            onClick={() => shift(-1)}
+            variant="outline"
+            size="sm"
+            disabled={!entries || entries.length === 0 || !unlocked}
+            onClick={unlocked ? () => void exportPeriod() : () => setPaywallOpen(true)}
+            title={!unlocked ? 'Unlock premium to export CSV' : undefined}
           >
-            <ChevronLeft />
+            {!unlocked && <Lock className="mr-1 h-3 w-3" />}
+            Export CSV
           </Button>
-          <span className="text-sm">{formatPeriodLabel(bounds)}</span>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label="Next period"
-            onClick={() => shift(1)}
-          >
-            <ChevronRight />
-          </Button>
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          disabled={!entries || entries.length === 0}
-          onClick={() => void exportPeriod()}
-        >
-          Export CSV
-        </Button>
+        )}
+
+        {mode === 'history' && <div />}
       </header>
 
       <div className="flex-1 space-y-6 overflow-y-auto px-5 py-4">
-        <section>
-          <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-            Totals
-          </h3>
-          {entries === null ? (
-            <p className="text-sm text-muted-foreground">Loading…</p>
-          ) : totals.length === 0 ? (
-            <p className="py-6 text-center text-sm text-muted-foreground">
-              No tracked time in this period.
-            </p>
-          ) : (
-            <ul className="divide-y rounded-md border">
-              {totals.map((t) => {
-                const pct =
-                  grandTotal === 0
-                    ? 0
-                    : (t.durationSeconds / grandTotal) * 100
-                return (
-                  <li
-                    key={t.contextName}
-                    className="flex items-center gap-3 px-3 py-2 text-sm"
-                  >
-                    <span className="flex-1 truncate">{t.contextName}</span>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {pct.toFixed(0)}%
-                    </span>
+        {mode === 'history' ? (
+          <HistoryChart
+            unlocked={unlocked}
+            weekStart={weekStart}
+            onPaywall={() => setPaywallOpen(true)}
+          />
+        ) : (
+          <>
+            <section>
+              <h3 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                Totals
+              </h3>
+              {entries === null ? (
+                <p className="text-sm text-muted-foreground">Loading…</p>
+              ) : totals.length === 0 ? (
+                <p className="py-6 text-center text-sm text-muted-foreground">
+                  No tracked time in this period.
+                </p>
+              ) : (
+                <ul className="divide-y rounded-md border">
+                  {totals.map((t) => {
+                    const pct =
+                      grandTotal === 0
+                        ? 0
+                        : (t.durationSeconds / grandTotal) * 100
+                    return (
+                      <li
+                        key={t.contextName}
+                        className="flex items-center gap-3 px-3 py-2 text-sm"
+                      >
+                        <span className="flex-1 truncate">{t.contextName}</span>
+                        <span className="text-xs text-muted-foreground tabular-nums">
+                          {pct.toFixed(0)}%
+                        </span>
+                        <span className="font-mono tabular-nums">
+                          {formatHMS(t.durationSeconds)}
+                        </span>
+                      </li>
+                    )
+                  })}
+                  <li className="flex items-center justify-between bg-secondary/40 px-3 py-2 text-sm font-medium">
+                    <span>Total</span>
                     <span className="font-mono tabular-nums">
-                      {formatHMS(t.durationSeconds)}
+                      {formatHMS(grandTotal)}
                     </span>
                   </li>
-                )
-              })}
-              <li className="flex items-center justify-between bg-secondary/40 px-3 py-2 text-sm font-medium">
-                <span>Total</span>
-                <span className="font-mono tabular-nums">
-                  {formatHMS(grandTotal)}
-                </span>
-              </li>
-            </ul>
-          )}
-        </section>
+                </ul>
+              )}
+            </section>
 
-        {mode === 'week' && <GoalsPanel />}
+            {mode === 'week' && (
+              <GoalsPanel
+                unlocked={unlocked}
+                onUnlocked={() => setUnlocked(true)}
+              />
+            )}
+          </>
+        )}
       </div>
+
+      <PaywallDialog
+        open={paywallOpen}
+        onOpenChange={setPaywallOpen}
+        onUnlocked={() => setUnlocked(true)}
+      />
     </div>
   )
 }
 
-function GoalsPanel(): React.JSX.Element {
-  const [unlocked, setUnlocked] = useState<boolean | null>(null)
+// ---------------------------------------------------------------- HistoryChart
+
+interface HistoryChartProps {
+  unlocked: boolean | null
+  weekStart: string
+  onPaywall: () => void
+}
+
+const HISTORY_WEEKS = 6
+
+function HistoryChart({ unlocked, weekStart, onPaywall }: HistoryChartProps): React.JSX.Element {
+  const [entries, setEntries] = useState<DailyLogEntry[] | null>(null)
+
+  useEffect(() => {
+    if (!unlocked) return
+    const today = todayLocal()
+    const current = weekBoundsFor(today, weekStart as 'sunday' | 'monday')
+    // Shift back HISTORY_WEEKS - 1 from the current week start
+    let earliest = current
+    for (let i = 1; i < HISTORY_WEEKS; i++) {
+      earliest = shiftWeek(earliest, -1, weekStart as 'sunday' | 'monday')
+    }
+    let cancelled = false
+    void window.api
+      .getLogsByDateRange(earliest.start, current.end)
+      .then((e) => { if (!cancelled) setEntries(e) })
+    return () => { cancelled = true }
+  }, [unlocked, weekStart])
+
+  if (unlocked === null) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="rounded-md border border-dashed p-6 text-center text-sm text-muted-foreground">
+        History charts are a premium feature.{' '}
+        <button
+          type="button"
+          onClick={onPaywall}
+          className="font-medium text-foreground underline-offset-2 hover:underline"
+        >
+          Unlock for $6
+        </button>
+        .
+      </div>
+    )
+  }
+
+  if (entries === null) {
+    return <p className="text-sm text-muted-foreground">Loading…</p>
+  }
+
+  if (entries.length === 0) {
+    return (
+      <p className="py-6 text-center text-sm text-muted-foreground">
+        No tracked time in the last {HISTORY_WEEKS} weeks.
+      </p>
+    )
+  }
+
+  // Build week buckets
+  const today = todayLocal()
+  const weeks: PeriodBounds[] = []
+  let w = weekBoundsFor(today, weekStart as 'sunday' | 'monday')
+  for (let i = 0; i < HISTORY_WEEKS; i++) {
+    weeks.unshift(w)
+    w = shiftWeek(w, -1, weekStart as 'sunday' | 'monday')
+  }
+
+  // Per-context, per-week totals
+  const contextNames = [...new Set(entries.map((e) => e.contextName))].sort()
+  const data: Record<string, number[]> = {}
+  for (const name of contextNames) {
+    data[name] = weeks.map((wk) =>
+      entries
+        .filter(
+          (e) => e.contextName === name && e.date >= wk.start && e.date <= wk.end
+        )
+        .reduce((s, e) => s + e.durationSeconds, 0)
+    )
+  }
+
+  // Max seconds in any single (context, week) cell for bar scaling
+  const maxSec = Math.max(
+    1,
+    ...contextNames.flatMap((n) => data[n])
+  )
+
+  return (
+    <section className="space-y-4">
+      <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Last {HISTORY_WEEKS} weeks
+      </h3>
+
+      {/* Week labels */}
+      <div className="grid gap-2" style={{ gridTemplateColumns: `120px repeat(${HISTORY_WEEKS}, 1fr)` }}>
+        <div />
+        {weeks.map((wk, i) => (
+          <div key={i} className="text-center text-xs text-muted-foreground">
+            {wk.start.slice(5)}
+          </div>
+        ))}
+      </div>
+
+      {contextNames.map((name) => (
+        <div
+          key={name}
+          className="grid items-center gap-2"
+          style={{ gridTemplateColumns: `120px repeat(${HISTORY_WEEKS}, 1fr)` }}
+        >
+          <span className="truncate text-sm" title={name}>{name}</span>
+          {data[name].map((sec, i) => {
+            const pct = (sec / maxSec) * 100
+            return (
+              <div key={i} className="flex flex-col items-center gap-0.5">
+                <div className="h-10 w-full rounded-sm bg-secondary">
+                  <div
+                    className="w-full rounded-sm bg-primary transition-all"
+                    style={{ height: `${pct}%`, marginTop: `${100 - pct}%` }}
+                    title={formatHMS(sec)}
+                  />
+                </div>
+                <span className="text-xs tabular-nums text-muted-foreground">
+                  {sec > 0 ? formatHMS(sec) : '—'}
+                </span>
+              </div>
+            )
+          })}
+        </div>
+      ))}
+    </section>
+  )
+}
+
+// ---------------------------------------------------------------- GoalsPanel
+
+interface GoalsPanelProps {
+  unlocked: boolean | null
+  onUnlocked: () => void
+}
+
+function GoalsPanel({ unlocked, onUnlocked }: GoalsPanelProps): React.JSX.Element {
   const [paywallOpen, setPaywallOpen] = useState(false)
   const [goalDialogOpen, setGoalDialogOpen] = useState(false)
   const [editing, setEditing] = useState<{
     contextId: string
     targetSecondsPerWeek: number
+    targetSecondsPerDay?: number | null
   } | null>(null)
   const [progress, setProgress] = useState<GoalProgress[]>([])
 
   const refresh = useCallback(async () => {
-    const [u, p] = await Promise.all([
-      window.api.getGoalsUnlocked(),
-      window.api.listGoalProgress()
-    ])
-    setUnlocked(u)
+    const p = await window.api.listGoalProgress()
     setProgress(p)
   }, [])
 
   useEffect(() => {
     void refresh()
-    // Refresh progress every 30s so a long-open Reports tab stays current.
     const id = setInterval(() => void refresh(), 30_000)
     return () => clearInterval(id)
   }, [refresh])
@@ -224,13 +394,14 @@ function GoalsPanel(): React.JSX.Element {
   const openEdit = (g: GoalProgress): void => {
     setEditing({
       contextId: g.contextId,
-      targetSecondsPerWeek: g.targetSecondsPerWeek
+      targetSecondsPerWeek: g.targetSecondsPerWeek,
+      targetSecondsPerDay: g.targetSecondsPerDay
     })
     setGoalDialogOpen(true)
   }
 
   const remove = async (g: GoalProgress): Promise<void> => {
-    if (!confirm(`Remove the weekly goal for "${g.contextName}"?`)) return
+    if (!confirm(`Remove the goal for "${g.contextName}"?`)) return
     await window.api.deleteGoal(g.contextId)
     await refresh()
   }
@@ -239,7 +410,7 @@ function GoalsPanel(): React.JSX.Element {
     <section>
       <header className="mb-2 flex items-center justify-between">
         <h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-          Weekly goals
+          Goals
         </h3>
         <Button size="sm" variant="outline" onClick={openAdd}>
           {unlocked === false && <Lock className="mr-1" />}
@@ -251,13 +422,13 @@ function GoalsPanel(): React.JSX.Element {
         <p className="text-sm text-muted-foreground">Loading…</p>
       ) : !unlocked && progress.length === 0 ? (
         <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
-          Weekly goals are a one-time unlock.{' '}
+          Goals (weekly + daily) are a one-time unlock.{' '}
           <button
             type="button"
             onClick={() => setPaywallOpen(true)}
             className="font-medium text-foreground underline-offset-2 hover:underline"
           >
-            Unlock for $4
+            Unlock for $6
           </button>
           .
         </div>
@@ -268,10 +439,14 @@ function GoalsPanel(): React.JSX.Element {
       ) : (
         <ul className="divide-y rounded-md border">
           {progress.map((g) => {
-            const pct = Math.min(
+            const weekPct = Math.min(
               100,
               (g.currentSeconds / g.targetSecondsPerWeek) * 100
             )
+            const dayPct =
+              g.targetSecondsPerDay !== null && g.dailyCurrentSeconds !== null
+                ? Math.min(100, (g.dailyCurrentSeconds / g.targetSecondsPerDay) * 100)
+                : null
             return (
               <li key={g.contextId} className="px-3 py-2.5">
                 <div className="mb-1.5 flex items-center gap-3 text-sm">
@@ -296,18 +471,44 @@ function GoalsPanel(): React.JSX.Element {
                     Remove
                   </Button>
                 </div>
+
+                {/* Weekly bar */}
                 <div
                   className="h-1.5 w-full overflow-hidden rounded-full bg-secondary"
-                  aria-label={`${Math.round(pct)}% complete`}
+                  aria-label={`Weekly: ${Math.round(weekPct)}% complete`}
                 >
                   <div
                     className={cn(
                       'h-full transition-all',
                       g.hit ? 'bg-emerald-500' : 'bg-primary'
                     )}
-                    style={{ width: `${pct}%` }}
+                    style={{ width: `${weekPct}%` }}
                   />
                 </div>
+
+                {/* Daily bar — only shown when a daily goal is set */}
+                {dayPct !== null && g.dailyCurrentSeconds !== null && g.targetSecondsPerDay !== null && (
+                  <div className="mt-1.5">
+                    <div className="mb-0.5 flex justify-between text-xs text-muted-foreground">
+                      <span>Today</span>
+                      <span className="font-mono tabular-nums">
+                        {formatHMS(g.dailyCurrentSeconds)} / {formatHMS(g.targetSecondsPerDay)}
+                      </span>
+                    </div>
+                    <div
+                      className="h-1 w-full overflow-hidden rounded-full bg-secondary"
+                      aria-label={`Daily: ${Math.round(dayPct)}% complete`}
+                    >
+                      <div
+                        className={cn(
+                          'h-full transition-all',
+                          g.dailyHit ? 'bg-emerald-400' : 'bg-primary/60'
+                        )}
+                        style={{ width: `${dayPct}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
               </li>
             )
           })}
@@ -318,8 +519,7 @@ function GoalsPanel(): React.JSX.Element {
         open={paywallOpen}
         onOpenChange={setPaywallOpen}
         onUnlocked={() => {
-          setUnlocked(true)
-          // Open the add-goal dialog right after unlocking for momentum.
+          onUnlocked()
           setEditing(null)
           setGoalDialogOpen(true)
         }}

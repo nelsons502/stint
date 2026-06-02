@@ -54,10 +54,11 @@ const api: StintAPI = {
 
   // Goals + paywall
   listGoalProgress: () => ipcRenderer.invoke(CMD.ListGoalProgress),
-  setGoal: (id, target) => ipcRenderer.invoke(CMD.SetGoal, id, target),
+  setGoal: (id, weekly, daily) => ipcRenderer.invoke(CMD.SetGoal, id, weekly, daily),
   deleteGoal: (id) => ipcRenderer.invoke(CMD.DeleteGoal, id),
   getGoalsUnlocked: () => ipcRenderer.invoke(CMD.GetGoalsUnlocked),
   setGoalsUnlocked: (u) => ipcRenderer.invoke(CMD.SetGoalsUnlocked, u),
+  validateLicenseKey: (key) => ipcRenderer.invoke(CMD.ValidateLicenseKey, key),
 
   // CSV
   exportCsv: (args) => ipcRenderer.invoke(CMD.ExportCsv, args),

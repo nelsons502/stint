@@ -57,6 +57,10 @@ export interface GoalsTable {
   target_seconds_per_week: number
   /** YYYY-MM-DD of the week-start when this goal was last marked hit; null if never hit. */
   last_hit_week: string | null
+  /** Optional daily target in seconds; null if no daily goal is set. */
+  target_seconds_per_day: number | null
+  /** YYYY-MM-DD when the daily goal was last marked hit; null if never hit or no daily goal. */
+  last_hit_day: string | null
   created_at: number
 }
 

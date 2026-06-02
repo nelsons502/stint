@@ -1,19 +1,18 @@
 <!--
-  Stint tray icon: a bold capital S.
+  Stint tray icon: lowercase "stint" wordmark.
 
-  Designed to be rendered as a macOS template image (monochrome, with
-  setTemplateImage(true) at runtime so macOS handles light/dark inversion).
-  Authored at 32x32; rasterized to 16x16 and 32x32 (@2x) PNGs by
-  scripts/build-icons.mjs.
+  Template image — fill is black; macOS inverts it automatically for
+  light/dark menubar. Authored at 64×22; rasterized to proportional PNGs
+  by scripts/build-icons.mjs (16px and 32px tall, width auto).
 -->
-<svg width="32" height="32" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+<svg width="64" height="22" viewBox="0 0 64 22" xmlns="http://www.w3.org/2000/svg">
   <text
-    x="16"
-    y="25.5"
+    x="1"
+    y="18"
     font-family="Helvetica Neue, Helvetica, Arial, sans-serif"
-    font-size="28"
+    font-size="18"
     font-weight="900"
-    text-anchor="middle"
     fill="#000000"
-  >S</text>
+    letter-spacing="-0.5"
+  >stint</text>
 </svg>

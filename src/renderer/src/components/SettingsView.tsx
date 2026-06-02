@@ -304,6 +304,12 @@ function AppSection({
         checked={settings.showInDock}
         onChange={(showInDock) => void update({ showInDock })}
       />
+      <ToggleRow
+        label="Silent goal notifications"
+        description="Suppress the system sound when a weekly or daily goal is hit."
+        checked={settings.goalNotificationSilent}
+        onChange={(goalNotificationSilent) => void update({ goalNotificationSilent })}
+      />
     </Section>
   )
 }

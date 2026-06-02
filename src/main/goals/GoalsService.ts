@@ -5,7 +5,8 @@ import {
   listGoals,
   setGoal as repoSetGoal,
   deleteGoal as repoDeleteGoal,
-  markGoalHit
+  markGoalHit,
+  markDailyGoalHit
 } from '../db/goals'
 import {
   getLogsByDateRange
@@ -19,8 +20,11 @@ export interface GoalProgress {
   currentSeconds: number
   weekStart: string
   weekEnd: string
-  /** True iff currentSeconds >= target. */
+  /** True iff currentSeconds >= weekly target. */
   hit: boolean
+  targetSecondsPerDay: number | null
+  dailyCurrentSeconds: number | null
+  dailyHit: boolean
 }
 
 export interface GoalHitEvent {
@@ -28,13 +32,19 @@ export interface GoalHitEvent {
   targetSecondsPerWeek: number
 }
 
+export interface DailyGoalHitEvent {
+  contextName: string
+  targetSecondsPerDay: number
+}
+
 export type Notifier = (event: GoalHitEvent) => void
+export type DailyNotifier = (event: DailyGoalHitEvent) => void
 
 /**
  * Owns goal evaluation. Listens to TimerService for state changes; on each,
- * computes per-goal progress for the current week and fires a notification
- * for any goal that transitioned from below-target to at-or-above target.
- * Tracks last_hit_week in the DB so we don't re-notify within the same week.
+ * computes per-goal progress for the current week and today, and fires
+ * notifications for goals that cross their target threshold. Tracks
+ * last_hit_week / last_hit_day in the DB to avoid double-notifying.
  */
 export class GoalsService {
   private subscribed = false
@@ -44,7 +54,8 @@ export class GoalsService {
     private readonly db: Kysely<DB>,
     private readonly timer: TimerService,
     private readonly notify: Notifier,
-    private readonly clock: () => number = Date.now
+    private readonly clock: () => number = Date.now,
+    private readonly notifyDaily: DailyNotifier = () => {}
   ) {}
 
   start(): void {
@@ -71,8 +82,12 @@ export class GoalsService {
     return this.computeProgress(snap)
   }
 
-  async setGoal(contextId: string, targetSecondsPerWeek: number): Promise<void> {
-    await repoSetGoal(this.db, contextId, targetSecondsPerWeek)
+  async setGoal(
+    contextId: string,
+    targetSecondsPerWeek: number,
+    targetSecondsPerDay?: number | null
+  ): Promise<void> {
+    await repoSetGoal(this.db, contextId, targetSecondsPerWeek, targetSecondsPerDay)
     await this.evaluate()
   }
 
@@ -89,15 +104,27 @@ export class GoalsService {
     const progress = await this.computeProgress(snap)
     const goals = await listGoals(this.db)
     for (const p of progress) {
-      if (!p.hit) continue
       const g = goals.find((x) => x.contextId === p.contextId)
       if (!g) continue
-      if (g.lastHitWeek === p.weekStart) continue
-      await markGoalHit(this.db, p.contextId, p.weekStart)
-      this.notify({
-        contextName: p.contextName,
-        targetSecondsPerWeek: p.targetSecondsPerWeek
-      })
+
+      if (p.hit && g.lastHitWeek !== p.weekStart) {
+        await markGoalHit(this.db, p.contextId, p.weekStart)
+        this.notify({
+          contextName: p.contextName,
+          targetSecondsPerWeek: p.targetSecondsPerWeek
+        })
+      }
+
+      if (p.dailyHit && p.targetSecondsPerDay !== null) {
+        const today = localDateString(new Date(this.clock()))
+        if (g.lastHitDay !== today) {
+          await markDailyGoalHit(this.db, p.contextId, today)
+          this.notifyDaily({
+            contextName: p.contextName,
+            targetSecondsPerDay: p.targetSecondsPerDay
+          })
+        }
+      }
     }
   }
 
@@ -140,6 +167,10 @@ export class GoalsService {
         const ctx = snap.contexts.find((c) => c.id === g.contextId)
         if (!ctx) return null
         const current = liveByContext.get(g.contextId) ?? 0
+        const dailySeconds = ctx.todaySeconds +
+          (ctx.id === snap.activeContextId && snap.activeStartedAtMs !== null
+            ? (now - snap.activeStartedAtMs) / 1000
+            : 0)
         return {
           contextId: g.contextId,
           contextName: ctx.name,
@@ -147,7 +178,10 @@ export class GoalsService {
           currentSeconds: current,
           weekStart: bounds.start,
           weekEnd: bounds.end,
-          hit: current >= g.targetSecondsPerWeek
+          hit: current >= g.targetSecondsPerWeek,
+          targetSecondsPerDay: g.targetSecondsPerDay,
+          dailyCurrentSeconds: g.targetSecondsPerDay !== null ? dailySeconds : null,
+          dailyHit: g.targetSecondsPerDay !== null && dailySeconds >= g.targetSecondsPerDay
         } as GoalProgress
       })
       .filter((x): x is GoalProgress => x !== null)

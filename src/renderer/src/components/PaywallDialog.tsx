@@ -8,6 +8,7 @@ import {
   DialogTitle
 } from '@renderer/components/ui/dialog'
 import { Button } from '@renderer/components/ui/button'
+import { Input } from '@renderer/components/ui/input'
 
 export interface PaywallDialogProps {
   open: boolean
@@ -15,60 +16,107 @@ export interface PaywallDialogProps {
   onUnlocked: () => void
 }
 
-const VENMO_HANDLE = '@nelson'
-const PRICE_USD = 4
+const CONTACT_EMAIL = 'nelson@focus-coding.com'
+const PRICE_USD = 6
 
 export function PaywallDialog({
   open,
   onOpenChange,
   onUnlocked
 }: PaywallDialogProps): React.JSX.Element {
-  const [confirming, setConfirming] = useState(false)
+  const [key, setKey] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState(false)
 
-  const confirmPaid = async (): Promise<void> => {
-    setConfirming(true)
+  const handleOpenChange = (next: boolean): void => {
+    if (!next) {
+      setKey('')
+      setError(false)
+    }
+    onOpenChange(next)
+  }
+
+  const submit = async (): Promise<void> => {
+    if (!key.trim() || busy) return
+    setBusy(true)
+    setError(false)
     try {
-      await window.api.setGoalsUnlocked(true)
-      onUnlocked()
-      onOpenChange(false)
+      const valid = await window.api.validateLicenseKey(key.trim())
+      if (valid) {
+        onUnlocked()
+        handleOpenChange(false)
+      } else {
+        setError(true)
+      }
     } finally {
-      setConfirming(false)
+      setBusy(false)
     }
   }
 
+  const onKeyDown = (e: React.KeyboardEvent): void => {
+    if (e.key === 'Enter') void submit()
+  }
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="max-w-md">
         <DialogHeader>
-          <DialogTitle>Unlock weekly goals</DialogTitle>
+          <DialogTitle>Unlock premium features</DialogTitle>
           <DialogDescription>
-            Set per-context weekly hour targets and get a notification when you
-            hit them. One-time, honor-system.
+            Weekly goals, daily goals, history charts, and CSV export.
+            One-time ${PRICE_USD} payment, yours forever.
           </DialogDescription>
         </DialogHeader>
 
-        <div className="space-y-3 rounded-md border bg-secondary/40 p-4 text-sm">
-          <p>
-            <span className="text-muted-foreground">Send</span>{' '}
-            <span className="font-mono font-medium">${PRICE_USD}</span>{' '}
-            <span className="text-muted-foreground">via Venmo to</span>{' '}
-            <span className="font-mono font-medium">{VENMO_HANDLE}</span>
-          </p>
-          <p className="text-xs text-muted-foreground">
-            Note: &ldquo;Stint&rdquo; so it&apos;s easy to find later.
-          </p>
+        <div className="space-y-4">
+          <div className="rounded-md border bg-secondary/40 p-4 text-sm">
+            <p className="text-muted-foreground">
+              Email{' '}
+              <a
+                href={`mailto:${CONTACT_EMAIL}?subject=Stint%20unlock`}
+                className="font-medium text-foreground underline-offset-2 hover:underline"
+              >
+                {CONTACT_EMAIL}
+              </a>{' '}
+              with subject <span className="font-mono">&ldquo;Stint unlock&rdquo;</span>.
+              You&apos;ll receive a license key after payment.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm text-muted-foreground">License key</label>
+            <Input
+              placeholder="Paste your license key here…"
+              value={key}
+              onChange={(e) => {
+                setKey(e.target.value)
+                setError(false)
+              }}
+              onKeyDown={onKeyDown}
+              className={error ? 'border-destructive focus-visible:ring-destructive' : ''}
+              disabled={busy}
+            />
+            {error && (
+              <p className="text-xs text-destructive">
+                Invalid license key. Check for typos or contact {CONTACT_EMAIL}.
+              </p>
+            )}
+          </div>
         </div>
 
         <DialogFooter>
           <Button
             variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={confirming}
+            onClick={() => handleOpenChange(false)}
+            disabled={busy}
           >
             Cancel
           </Button>
-          <Button onClick={() => void confirmPaid()} disabled={confirming}>
-            {confirming ? 'Unlocking…' : "I've sent it — unlock"}
+          <Button
+            onClick={() => void submit()}
+            disabled={!key.trim() || busy}
+          >
+            {busy ? 'Verifying…' : 'Unlock'}
           </Button>
         </DialogFooter>
       </DialogContent>

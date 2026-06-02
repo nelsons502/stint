@@ -9,7 +9,8 @@ import { ShortcutManager } from './shortcuts/ShortcutManager'
 import { registerIpcBridge, sendInitialSnapshot } from './ipc/bridge'
 import { AutoSaver } from './autosave/AutoSaver'
 import { GoalsService } from './goals/GoalsService'
-import { getAppSettings } from './db/settings'
+import { getAppSettings, getSetting, setGoalsUnlocked, SettingsKeys } from './db/settings'
+import { verifyLicenseKey } from './license/verify'
 import { formatHMS } from '../shared/format'
 import type { AppSettings } from '../shared/api'
 
@@ -95,6 +96,14 @@ app.whenReady().then(async () => {
     : join(app.getPath('userData'), 'stint.db')
   const db = await openAndMigrate(dbPath)
 
+  // Re-verify the stored license key on every launch. If it's absent or
+  // doesn't match the embedded public key, re-lock premium features. This
+  // prevents unlocking by editing the SQLite DB directly.
+  const storedKey = await getSetting(db, SettingsKeys.LicenseKey)
+  if (!storedKey || !verifyLicenseKey(storedKey)) {
+    await setGoalsUnlocked(db, false)
+  }
+
   // Read settings up front so we apply them before any UI exists.
   const settings = await getAppSettings(db)
   applyDockVisibility(settings.showInDock)
@@ -106,13 +115,26 @@ app.whenReady().then(async () => {
   autoSaver = new AutoSaver(db, timer)
   await autoSaver.start()
 
-  goalsService = new GoalsService(db, timer, (event) => {
-    new Notification({
-      title: 'Goal hit!',
-      body: `${event.contextName} — ${formatHMS(event.targetSecondsPerWeek)} this week`,
-      silent: false
-    }).show()
-  })
+  let goalNotificationSilent = settings.goalNotificationSilent
+  goalsService = new GoalsService(
+    db,
+    timer,
+    (event) => {
+      new Notification({
+        title: 'Weekly goal hit!',
+        body: `${event.contextName} — ${formatHMS(event.targetSecondsPerWeek)} this week`,
+        silent: goalNotificationSilent
+      }).show()
+    },
+    Date.now,
+    (event) => {
+      new Notification({
+        title: 'Daily goal hit!',
+        body: `${event.contextName} — ${formatHMS(event.targetSecondsPerDay)} today`,
+        silent: goalNotificationSilent
+      }).show()
+    }
+  )
   goalsService.setWeekStart(settings.weekStart)
   goalsService.start()
 
@@ -168,6 +190,9 @@ app.whenReady().then(async () => {
     if (patch.showInDock !== undefined) applyDockVisibility(next.showInDock)
     if (patch.weekStart !== undefined) goalsService?.setWeekStart(next.weekStart)
     if (patch.hotkeys !== undefined) shortcuts?.applyConfig(next.hotkeys)
+    if (patch.goalNotificationSilent !== undefined) {
+      goalNotificationSilent = next.goalNotificationSilent
+    }
     if (patch.autoSave !== undefined && autoSaver) {
       await autoSaver.updateConfig(next.autoSave)
     }

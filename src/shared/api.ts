@@ -62,6 +62,8 @@ export interface AppSettings {
   /** Whether Save & Reset should show its confirmation dialog. */
   promptBeforeSave: boolean
   hotkeys: HotkeysConfig
+  /** Mute the system sound on goal-hit notifications. */
+  goalNotificationSilent: boolean
 }
 
 export const DEFAULT_HOTKEYS: HotkeysConfig = {
@@ -79,7 +81,8 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   weekStart: 'sunday',
   newContextStartImmediately: false,
   promptBeforeSave: true,
-  hotkeys: DEFAULT_HOTKEYS
+  hotkeys: DEFAULT_HOTKEYS,
+  goalNotificationSilent: false
 }
 
 export interface GoalProgress {
@@ -90,6 +93,9 @@ export interface GoalProgress {
   weekStart: string
   weekEnd: string
   hit: boolean
+  targetSecondsPerDay: number | null
+  dailyCurrentSeconds: number | null
+  dailyHit: boolean
 }
 
 export interface DailyLogEntry {
@@ -137,10 +143,12 @@ export interface StintAPI {
 
   // Goals + paywall
   listGoalProgress(): Promise<GoalProgress[]>
-  setGoal(contextId: string, targetSecondsPerWeek: number): Promise<void>
+  setGoal(contextId: string, targetSecondsPerWeek: number, targetSecondsPerDay?: number | null): Promise<void>
   deleteGoal(contextId: string): Promise<void>
   getGoalsUnlocked(): Promise<boolean>
   setGoalsUnlocked(unlocked: boolean): Promise<void>
+  /** Verifies an Ed25519 license key. Returns true and persists the unlock if valid. */
+  validateLicenseKey(key: string): Promise<boolean>
 
   // CSV
   exportCsv(args: {

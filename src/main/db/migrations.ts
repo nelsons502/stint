@@ -86,6 +86,19 @@ const migrations: Migration[] = [
         .addColumn('created_at', 'integer', (col) => col.notNull())
         .execute()
     }
+  },
+  {
+    name: '0004_daily_goals',
+    up: async (db) => {
+      await db.schema
+        .alterTable('goals')
+        .addColumn('target_seconds_per_day', 'integer')
+        .execute()
+      await db.schema
+        .alterTable('goals')
+        .addColumn('last_hit_day', 'text')
+        .execute()
+    }
   }
 ]
 

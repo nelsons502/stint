@@ -24,8 +24,11 @@ import {
   getAppSettings,
   updateAppSettings,
   getGoalsUnlocked,
-  setGoalsUnlocked
+  setGoalsUnlocked,
+  setSetting,
+  SettingsKeys
 } from '../db/settings'
+import { verifyLicenseKey } from '../license/verify'
 import type {
   AddContextInput,
   AppSettings,
@@ -137,8 +140,8 @@ export function registerIpcBridge(
   ipcMain.handle(CMD.ListGoalProgress, () => goalsService.listProgress())
   ipcMain.handle(
     CMD.SetGoal,
-    (_e, contextId: string, targetSecondsPerWeek: number) =>
-      goalsService.setGoal(contextId, targetSecondsPerWeek)
+    (_e, contextId: string, targetSecondsPerWeek: number, targetSecondsPerDay?: number | null) =>
+      goalsService.setGoal(contextId, targetSecondsPerWeek, targetSecondsPerDay)
   )
   ipcMain.handle(CMD.DeleteGoal, (_e, contextId: string) =>
     goalsService.deleteGoal(contextId)
@@ -147,6 +150,12 @@ export function registerIpcBridge(
   ipcMain.handle(CMD.SetGoalsUnlocked, (_e, unlocked: boolean) =>
     setGoalsUnlocked(db, unlocked)
   )
+  ipcMain.handle(CMD.ValidateLicenseKey, async (_e, key: string): Promise<boolean> => {
+    if (!verifyLicenseKey(key)) return false
+    await setSetting(db, SettingsKeys.LicenseKey, key.trim())
+    await setGoalsUnlocked(db, true)
+    return true
+  })
 
   // CSV
   ipcMain.handle(

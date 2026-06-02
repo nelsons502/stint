@@ -50,6 +50,8 @@ export class TrayController {
   private tray: Tray | null = null
   private tickHandle: NodeJS.Timeout | null = null
   private currentSnapshot: TimerSnapshot | null = null
+  private wordmarkIcon: ReturnType<typeof nativeImage.createFromPath> | null = null
+  private emptyIcon: ReturnType<typeof nativeImage.createFromPath> | null = null
 
   constructor(
     private readonly timer: TimerService,
@@ -58,14 +60,14 @@ export class TrayController {
   ) {}
 
   start(): void {
-    const iconPath = path.join(
-      this.resourcesPath,
-      'tray',
-      'iconTemplate.png'
-    )
-    const icon = nativeImage.createFromPath(iconPath)
-    icon.setTemplateImage(true)
-    this.tray = new Tray(icon)
+    const iconPath = path.join(this.resourcesPath, 'tray', 'iconTemplate.png')
+    this.wordmarkIcon = nativeImage.createFromPath(iconPath)
+    this.wordmarkIcon.setTemplateImage(true)
+
+    const emptyPath = path.join(this.resourcesPath, 'tray', 'iconEmpty.png')
+    this.emptyIcon = nativeImage.createFromPath(emptyPath)
+
+    this.tray = new Tray(this.wordmarkIcon)
     this.tray.setToolTip('Stint')
 
     this.currentSnapshot = this.timer.getSnapshot()
@@ -105,17 +107,23 @@ export class TrayController {
   private refreshTitle(): void {
     if (!this.tray || !this.currentSnapshot) return
     const snap = this.currentSnapshot
-    if (snap.activeContextId === null) {
+
+    const paused = snap.activeContextId === null ||
+      !snap.contexts.find((c) => c.id === snap.activeContextId)
+
+    if (paused) {
+      // Show the wordmark when nothing is running so the icon identifies the app
+      if (this.wordmarkIcon) this.tray.setImage(this.wordmarkIcon)
       this.tray.setTitle(' Paused')
       return
     }
-    const active = snap.contexts.find((c) => c.id === snap.activeContextId)
-    if (!active) {
-      this.tray.setTitle(' Paused')
-      return
-    }
+
+    const active = snap.contexts.find((c) => c.id === snap.activeContextId)!
     const live = liveSeconds(active.id, active.todaySeconds, snap, Date.now())
-    this.tray.setTitle(` ${formatTitle(active.name, live)}`)
+    // Hide the wordmark while tracking — the context name + time is the whole
+    // identifier and the wide icon just creates a confusing gap
+    if (this.emptyIcon) this.tray.setImage(this.emptyIcon)
+    this.tray.setTitle(formatTitle(active.name, live))
   }
 
   private rebuildMenu(): void {

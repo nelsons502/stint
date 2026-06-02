@@ -12,19 +12,18 @@ export const SettingsKeys = {
   AutoSaveEnabled: 'autoSaveEnabled',
   /** HH:MM in 24-hour local time, e.g., "03:00". */
   AutoSaveTime: 'autoSaveTime',
-  /**
-   * Honor-system paywall for weekly goals. 'true' = paid (or simulated paid),
-   * anything else = locked. The architecture is designed so this gate can be
-   * swapped for a server-side check later without touching the UI.
-   */
+  /** 'true' when a valid license key has been verified. */
   GoalsUnlocked: 'goalsUnlocked',
+  /** The raw license key string, stored so it can be re-verified on launch. */
+  LicenseKey: 'licenseKey',
   StartAtLogin: 'startAtLogin',
   ShowInDock: 'showInDock',
   WeekStart: 'weekStart',
   NewContextStartImmediately: 'newContextStartImmediately',
   PromptBeforeSave: 'promptBeforeSave',
   /** JSON-encoded HotkeysConfig. */
-  Hotkeys: 'hotkeys'
+  Hotkeys: 'hotkeys',
+  GoalNotificationSilent: 'goalNotificationSilent'
 } as const
 
 export type SettingsKey = (typeof SettingsKeys)[keyof typeof SettingsKeys]
@@ -138,7 +137,8 @@ export async function getAppSettings(db: Kysely<DB>): Promise<AppSettings> {
     newContextStartImmediately:
       all[SettingsKeys.NewContextStartImmediately] === 'true',
     promptBeforeSave: all[SettingsKeys.PromptBeforeSave] !== 'false',
-    hotkeys: parseHotkeys(all[SettingsKeys.Hotkeys] ?? null)
+    hotkeys: parseHotkeys(all[SettingsKeys.Hotkeys] ?? null),
+    goalNotificationSilent: all[SettingsKeys.GoalNotificationSilent] === 'true'
   }
 }
 
@@ -181,6 +181,13 @@ export async function updateAppSettings(
   }
   if (patch.hotkeys !== undefined) {
     await setSetting(db, SettingsKeys.Hotkeys, JSON.stringify(patch.hotkeys))
+  }
+  if (patch.goalNotificationSilent !== undefined) {
+    await setSetting(
+      db,
+      SettingsKeys.GoalNotificationSilent,
+      String(patch.goalNotificationSilent)
+    )
   }
   return getAppSettings(db)
 }
