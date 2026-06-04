@@ -4,7 +4,7 @@ import { verify } from 'node:crypto'
 // (gitignored). To rotate: run `npm run keygen`, update this constant, and
 // re-ship. Old keys will stop working, so email existing buyers the new key.
 const PUBLIC_KEY_PEM = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAQTSWvVctAadxJaeUli+zfrri0F5hB7V/vccUgTEtNm0=
+MCowBQYDK2VwAyEA9AXaA18rLzp/kRcmzakaGH/8sU198p+Vs6Jr5Jm6AhY=
 -----END PUBLIC KEY-----`
 
 /**
