@@ -13,6 +13,8 @@ A macOS menubar time tracker built for ADHD-friendly workflows: one timer runs a
 
 Premium features are a one-time $6 unlock. Email [nelson@focus-coding.com](mailto:nelson@focus-coding.com?subject=Stint%20unlock) to get started.
 
+Stint is open source (MIT). The paywall is cryptographically enforced via an Ed25519 license key — the source being visible doesn't bypass it, since the private key never leaves the developer's machine. You're welcome to build and modify it yourself.
+
 ## Stack
 
 - **Electron** (menubar app, macOS-first)
@@ -29,7 +31,17 @@ Premium features are a one-time $6 unlock. Email [nelson@focus-coding.com](mailt
 - Node 20+
 - macOS (Windows/Linux builds exist but are untested)
 
-### Install and run
+### Install the app (pre-built .dmg)
+
+Download the latest `.dmg` from [Releases](https://github.com/nelsons502/stint/releases), open it, and drag Stint to Applications.
+
+**First launch:** macOS will block it because the app isn't notarized (no Apple Developer subscription). Bypass it once:
+
+> **System Settings → Privacy & Security → scroll down → "Stint was blocked" → Open Anyway**
+
+Or right-click the app in Applications → Open → Open. You won't be asked again after the first time.
+
+### Build from source
 
 ```bash
 npm install
@@ -51,6 +63,8 @@ The `predev` hook automatically rebuilds `better-sqlite3` against Electron's Nod
 | `npm run test:run` | Vitest (single pass, CI-friendly) |
 | `npm run build:icons` | Rasterize tray icon SVGs → PNGs |
 | `npm run build:app-icon` | Rasterize app icon SVG → PNGs |
+| `npm run generate-license` | Issue a license key for a paying customer |
+| `npm run keygen` | Rotate the Ed25519 keypair (update `verify.ts` after) |
 
 ### Updating icons
 
