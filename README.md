@@ -33,13 +33,15 @@ Stint is open source (MIT). The paywall is cryptographically enforced via an Ed2
 
 ### Install the app (pre-built .dmg)
 
-Download the latest `.dmg` from [Releases](https://github.com/nelsons502/stint/releases), open it, and drag Stint to Applications.
+Download the latest `.dmg` from [Releases](https://github.com/nelsons502/stint/releases/latest), open it, and drag Stint to Applications. Pick `stint-<version>-arm64.dmg` for Apple Silicon (M1 or newer) or `stint-<version>-x64.dmg` for Intel Macs.
 
-**First launch:** macOS will block it because the app isn't notarized (no Apple Developer subscription). Bypass it once:
+**First launch:** macOS will block it because the app isn't notarized (no Apple Developer subscription). Open the app once so macOS shows the warning, then bypass it:
 
 > **System Settings → Privacy & Security → scroll down → "Stint was blocked" → Open Anyway**
 
-Or right-click the app in Applications → Open → Open. You won't be asked again after the first time.
+You won't be asked again after the first time. On older macOS versions, right-click the app → Open also works; newer versions only accept the System Settings route.
+
+**Updates:** because the app is unsigned, macOS may refuse to install in-app updates. If Stint doesn't update itself, download the new `.dmg` from Releases and drag it over the old copy. Your data lives outside the app bundle and carries over.
 
 ### Build from source
 
