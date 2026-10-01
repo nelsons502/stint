@@ -25,6 +25,10 @@ nsis:
   createDesktopShortcut: always
 mac:
   identity: '-'
+  # Hardened runtime enforces library validation, which rejects every bundled
+  # framework when the app is ad-hoc signed (no Team ID) and crashes at launch.
+  # Turn it back on together with a real identity if notarization is added.
+  hardenedRuntime: false
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
     - NSCameraUsageDescription: Application requests access to the device's camera.
